@@ -9,12 +9,21 @@
         registry entry, and the tentative records (tools/harvest.py, limited to the library's roots, then filtered by the
         record rules: validate_records.py and lint_banked.py are run and what they refuse is dropped, as in tengoku#674).
 
-A repository is refused (verdict says why) when: archived, a fork, no permissive licence on GitHub, no lean-toolchain, a Lake
-dependency beyond Mathlib's own (those libraries need a registration of their own dependencies first), or no lean_lib roots.
+A repository is refused (verdict says why) when: archived, a fork, no permissive licence on GitHub, no lean-toolchain, a lean-toolchain
+outside v4.31 to v4.34.1 (the lane's range: older ones lose their proofs on the tree's version, newer ones are not built by it), a Lake
+dependency beyond Mathlib's own (those libraries need a registration of their own dependencies first), no lean_lib roots, a root with a
+generic name (Challenge, Solution, Paper, Main, ...: it would collide in the tree's namespace), or a root another registered library already
+has (batch 12: projectionconstants-lean had grunbaum-lean's ProjectionConstants, so its records were the same theorems twice).
 """
 import json, re, subprocess, sys, base64, urllib.parse
+from pathlib import Path
 
 PERMISSIVE = {"Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "CC0-1.0", "0BSD", "Unlicense", "ISC"}
+# the lane's toolchain range (inclusive): v4.31.0 .. v4.34.1, release candidates of those included
+TOOLCHAIN_MIN, TOOLCHAIN_MAX = (4, 31, 0), (4, 34, 1)
+# root names that say nothing about the library: a module `Challenge.Basic` or `Main` of two libraries is one namespace in the tree
+GENERIC_ROOTS = {"challenge", "solution", "paper", "main", "operator", "util", "utils", "lib", "src", "test", "tests", "examples", "scripts", "submission",
+                 "erdosproblems", "formalconjectures", "mathlib", "lean", "basic", "common", "shared", "problem", "problems", "proof", "proofs", "checks"}
 MATHLIB_DEPS = {"mathlib", "plausible", "LeanSearchClient", "importGraph", "proofwidgets", "aesop", "Qq", "batteries", "Cli"}
 
 
@@ -40,6 +49,34 @@ def requires_of(lakefile):
     return sorted(dict.fromkeys(names))
 
 
+def toolchain_in_range(tc):
+    """tc: 'leanprover/lean4:v4.33.0', 'leanprover/lean4:v4.33.0-rc2' or 'v4.33.0'. True from v4.31.0 to v4.34.1; anything else is out: v4.36.0, a nightly,
+    a spelling that merely contains a version, no version (cubic on #219: the whole string must be a release or release candidate)."""
+    m = re.fullmatch(r"(?:leanprover/lean4:)?v(\d+)\.(\d+)\.(\d+)(?:-rc\d+)?", (tc or "").strip())
+    return bool(m) and TOOLCHAIN_MIN <= tuple(int(x) for x in m.groups()) <= TOOLCHAIN_MAX
+
+
+def root_problems(roots, taken, key=None):
+    """why these roots cannot be registered: generic names, and roots another registered library already has. taken: {root lower-case: [keys]}"""
+    why = []
+    generic = [r for r in roots if r.lower() in GENERIC_ROOTS]
+    if generic: why.append("generic lean_lib root: " + ", ".join(generic))
+    clash = {r: [k for k in taken.get(r.lower(), []) if k != key] for r in roots}
+    clash = {r: ks for r, ks in clash.items() if ks}
+    if clash: why.append("root already registered by another library: " + "; ".join(f"{r} ({', '.join(ks)})" for r, ks in clash.items()))
+    return why
+
+
+def registered_roots(path=None):
+    """{root lower-case: [keys]} from the emissary registry next to this script (sources.json). An unreadable registry raises: a check that cannot look
+    must not pass (cubic on #219)."""
+    sources = json.load(open(path or Path(__file__).resolve().parent.parent / "sources.json"))["sources"]
+    out = {}
+    for k, v in sources.items():
+        for r in v.get("roots", []): out.setdefault(r.lower(), []).append(k)
+    return out
+
+
 def meta(repo):
     out = {"repo": repo, "key": repo.split("/")[1].lower().replace("_", "-")}
     info = gh(f"repos/{repo}")
@@ -56,10 +93,15 @@ def meta(repo):
     if spdx not in PERMISSIVE: why.append(f"licence {spdx}")
     tc = (contents(repo, "lean-toolchain", sha) or "").strip()
     if not tc: why.append("no lean-toolchain")
+    elif not toolchain_in_range(tc): why.append(f"toolchain {tc} outside v4.31 to v4.34.1")
     out["toolchain"] = tc if tc.startswith("leanprover/") else ("leanprover/lean4:" + tc if tc else "")
     lake = contents(repo, "lakefile.toml", sha) or contents(repo, "lakefile.lean", sha) or ""
     out["roots"] = roots_of(lake)
     if not out["roots"]: why.append("no lean_lib roots")
+    else:
+        try: taken = registered_roots()
+        except Exception as e: why.append(f"registry unreadable, roots not checked: {type(e).__name__}: {e}")
+        else: why += root_problems(out["roots"], taken, out["key"])
     mf = contents(repo, "lake-manifest.json", sha)
     deps = requires_of(lake)
     if mf:
@@ -82,6 +124,14 @@ def apply(argv):
     keys = [m["key"] for m in M]
     if len(keys) != len(set(keys)):
         sys.exit("two repositories give the same key: " + ", ".join(sorted(k for k in set(keys) if keys.count(k) > 1)))
+    try: taken = registered_roots(f"{a.emissary}/sources.json")
+    except Exception as e: sys.exit(f"the emissary registry cannot be read, so no root can be checked: {type(e).__name__}: {e}")
+    for m in M:
+        if not toolchain_in_range(m.get("toolchain")):  # meta checks it too; stale or edited metadata that says ok must not get past here (cubic on #219)
+            sys.exit(f"{m['key']} refused: toolchain {m.get('toolchain')} outside v4.31 to v4.34.1")
+        why = root_problems(m["roots"], taken, m["key"])
+        if why: sys.exit(f"{m['key']} refused: " + "; ".join(why))
+        for r in m["roots"]: taken.setdefault(r.lower(), []).append(m["key"])  # two libraries of one batch with one root are caught here too
     # tengoku: allowed + licences + corpora
     p = f"{a.tengoku}/schemas/sources.json"; d = json.load(open(p))
     e = json.load(open(f"{a.emissary}/sources.json"))

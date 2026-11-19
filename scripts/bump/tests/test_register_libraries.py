@@ -3,6 +3,7 @@ import json
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location("rl", Path(__file__).resolve().parents[2] / "register_libraries.py")
@@ -30,7 +31,7 @@ class Apply(unittest.TestCase):
         (d / "t/schemas/sources.json").write_text(json.dumps({"allowed": [], "licences": {}, "corpora": {}}))
         (d / "e/sources.json").write_text(json.dumps({"sources": {}}))
         (d / "rec/good.jsonl").write_text("{}\n")
-        ok = {"repo": "o/good", "key": "good", "commit": "c" * 40, "licence": "MIT", "toolchain": "leanprover/lean4:v4.35.0", "roots": ["Good"], "verdict": "ok"}
+        ok = {"repo": "o/good", "key": "good", "commit": "c" * 40, "licence": "MIT", "toolchain": "leanprover/lean4:v4.34.1", "roots": ["Good"], "verdict": "ok"}
         bad = {"repo": "o/bad", "key": "bad", "verdict": "archived"}
         (d / "meta.json").write_text(json.dumps([ok, bad]))
         rl.apply(["apply", "--tengoku", str(d / "t"), "--emissary", str(d / "e"), "--meta", str(d / "meta.json"), "--records", str(d / "rec")])
@@ -58,13 +59,13 @@ class Apply(unittest.TestCase):
 
     def test_a_key_registered_for_another_repository_is_refused(self):
         d = self._setup(registered="a/foo")
-        m = {"repo": "b/foo", "key": "foo", "commit": "c" * 40, "licence": "MIT", "toolchain": "t", "roots": ["F"], "verdict": "ok"}
+        m = {"repo": "b/foo", "key": "foo", "commit": "c" * 40, "licence": "MIT", "toolchain": "leanprover/lean4:v4.33.0", "roots": ["F"], "verdict": "ok"}
         with self.assertRaises(SystemExit):
             self._run(d, [m])
 
     def test_two_repositories_with_one_key_are_refused(self):
         d = self._setup()
-        m = {"repo": "a/foo", "key": "foo", "commit": "c" * 40, "licence": "MIT", "toolchain": "t", "roots": ["F"], "verdict": "ok"}
+        m = {"repo": "a/foo", "key": "foo", "commit": "c" * 40, "licence": "MIT", "toolchain": "leanprover/lean4:v4.33.0", "roots": ["F"], "verdict": "ok"}
         with self.assertRaises(SystemExit):
             self._run(d, [m, {**m, "repo": "b/foo"}])
 
@@ -258,6 +259,143 @@ class RefineSparse(unittest.TestCase):
         body = src[src.index("def refine(") : src.index("def names_of(")]
         self.assertIn("stage_and_amend(T)", body)
         self.assertNotIn('"add", "-A"', body)
+
+
+class ToolchainRange(unittest.TestCase):
+    """the lane registers libraries from v4.31.0 to v4.34.1 only; batch 12's metadata step let v4.36.0 (nerdsniping) and v4.35.0 ones through"""
+
+    def test_real_toolchains_of_batches_8_to_13(self):
+        for tc in ("leanprover/lean4:v4.31.0", "leanprover/lean4:v4.32.2", "leanprover/lean4:v4.33.0-rc2", "leanprover/lean4:v4.34.0-rc1", "leanprover/lean4:v4.34.1", "v4.33.1"):
+            self.assertTrue(rl.toolchain_in_range(tc), tc)
+
+    def test_real_out_of_range_toolchains(self):
+        for tc in ("leanprover/lean4:v4.36.0", "leanprover/lean4:v4.35.0", "leanprover/lean4:v4.28.0", "leanprover/lean4:v4.30.1", "leanprover/lean4:nightly-2026-10-01", "leanprover/lean4:v4.33.0-nightly-2026-10-01", "xv4.33.0", "leanprover/lean4:v4.33.0 extra", "", None):
+            self.assertFalse(rl.toolchain_in_range(tc), tc)
+
+
+class MetaVerdict(unittest.TestCase):
+    """meta end to end with a mocked GitHub: the real verdicts of batch 12's candidates"""
+
+    def _meta(self, repo, toolchain, lakefile, registry=None):
+        info = json.dumps({"default_branch": "main", "archived": False, "fork": False, "license": {"spdx_id": "Apache-2.0"}})
+        files = {"lean-toolchain": toolchain, "lakefile.toml": lakefile, "lakefile.lean": None, "lake-manifest.json": None}
+        gh = lambda path, raw=False: info if path == f"repos/{repo}" else json.dumps({"sha": "c" * 40})
+        reg = rl.registered_roots if registry is None else registry
+        with unittest.mock.patch.object(rl, "gh", gh), unittest.mock.patch.object(rl, "contents", lambda r, p, s: files.get(p)), unittest.mock.patch.object(rl, "registered_roots", reg):
+            return rl.meta(repo)
+
+    def test_real_case_nerdsniping_on_v4_36_0_is_refused(self):
+        m = self._meta("wwylele/NerdSniping", "leanprover/lean4:v4.36.0\n", '[[lean_lib]]\nname = "GridCircuit"\n')
+        self.assertEqual(m["verdict"], "toolchain leanprover/lean4:v4.36.0 outside v4.31 to v4.34.1")
+
+    def test_real_case_projectionconstants_lean_is_refused_for_grunbaums_root(self):
+        m = self._meta("GiulianoBasso/ProjectionConstants-lean", "leanprover/lean4:v4.34.1\n", '[[lean_lib]]\nname = "ProjectionConstants"\n')
+        self.assertEqual(m["verdict"], "root already registered by another library: ProjectionConstants (grunbaum-lean)")
+
+    def test_real_case_a_library_with_challenge_and_solution_roots_is_refused(self):
+        m = self._meta("o/spectral", "leanprover/lean4:v4.33.0\n", '[[lean_lib]]\nname = "Challenge"\n\n[[lean_lib]]\nname = "Solution"\n\n[[lean_lib]]\nname = "MI32"\n', registry=lambda path=None: {})  # an empty registry: the verdict is the generic names alone
+        self.assertEqual(m["verdict"], "generic lean_lib root: Challenge, Solution")
+
+    def test_a_good_library_is_ok(self):
+        m = self._meta("sichen-wang/tuza-lean", "leanprover/lean4:v4.32.0\n", '[[lean_lib]]\nname = "Tuza"\n')
+        self.assertEqual(m["verdict"], "ok")
+
+    def test_an_unreadable_registry_refuses_instead_of_passing(self):
+        def broken(path=None): raise FileNotFoundError("sources.json")
+        m = self._meta("sichen-wang/tuza-lean", "leanprover/lean4:v4.32.0\n", '[[lean_lib]]\nname = "Tuza"\n', registry=broken)
+        self.assertEqual(m["verdict"], "registry unreadable, roots not checked: FileNotFoundError: sources.json")
+
+
+class RootChecks(unittest.TestCase):
+    def test_real_case_projectionconstants_reuses_grunbaums_root(self):
+        taken = rl.registered_roots()  # the real registry of this checkout: grunbaum-lean (batch 11) is in it
+        self.assertEqual(taken["projectionconstants"], ["grunbaum-lean"])
+        why = rl.root_problems(["ProjectionConstants"], taken, "projectionconstants-lean")
+        self.assertEqual(why, ["root already registered by another library: ProjectionConstants (grunbaum-lean)"])
+
+    def test_real_case_mahler_measure_minima_reuses_pdt_leans_roots(self):
+        why = rl.root_problems(["PdtMahler", "PdtMahlerBox", "Other"], rl.registered_roots(), "mahler-measure-minima")
+        self.assertEqual(len(why), 1)
+        self.assertIn("PdtMahler (pdt-lean)", why[0])
+        self.assertIn("PdtMahlerBox (pdt-lean)", why[0])
+        self.assertNotIn("Other", why[0])
+
+    def test_a_library_does_not_clash_with_itself(self):
+        self.assertEqual(rl.root_problems(["ProjectionConstants"], rl.registered_roots(), "grunbaum-lean"), [])
+
+    def test_real_case_generic_roots(self):
+        # jsp-000754-formalization, spectral-norms-of-independent-entries-..., resolutionsemantics, srg266-nonexistence-lean
+        self.assertEqual(rl.root_problems(["Challenge", "ErdosProblems", "Submission"], {}), ["generic lean_lib root: Challenge, ErdosProblems, Submission"])
+        self.assertEqual(rl.root_problems(["Challenge", "GraphMatrices", "MI32", "Solution"], {}), ["generic lean_lib root: Challenge, Solution"])
+        self.assertEqual(rl.root_problems(["Paper"], {}), ["generic lean_lib root: Paper"])
+        self.assertEqual(rl.root_problems(["Main", "SRG266"], {}), ["generic lean_lib root: Main"])
+
+    def test_own_roots_pass(self):
+        self.assertEqual(rl.root_problems(["Tuza"], rl.registered_roots(), "tuza-lean"), [])
+        self.assertEqual(rl.root_problems(["WeightedChains", "WeightedChainsPalomar"], rl.registered_roots(), "weighted-chains-paper"), [])
+
+    def test_mutant_without_the_registry_a_reused_root_is_not_found(self):
+        self.assertEqual(rl.root_problems(["ProjectionConstants"], {}, "projectionconstants-lean"), [])
+
+    def test_the_registry_next_to_the_script_is_read(self):
+        self.assertGreater(len(rl.registered_roots()), 100)
+        with self.assertRaises(OSError):  # an unreadable registry is an error, never an empty one
+            rl.registered_roots("/nonexistent/sources.json")
+
+
+class ApplyRoots(unittest.TestCase):
+    def _meta(self, key, roots):
+        return {"repo": "o/" + key, "key": key, "commit": "c" * 40, "licence": "MIT", "toolchain": "leanprover/lean4:v4.33.0", "roots": roots, "verdict": "ok"}
+
+    def _run(self, registry, metas):
+        d = Path(tempfile.mkdtemp())
+        (d / "t/schemas").mkdir(parents=True); (d / "t/data/tentative").mkdir(parents=True); (d / "e").mkdir(); (d / "rec").mkdir()
+        (d / "t/schemas/sources.json").write_text(json.dumps({"allowed": [], "licences": {}, "corpora": {}}))
+        (d / "e/sources.json").write_text(json.dumps({"sources": registry}))
+        for m in metas: (d / f"rec/{m['key']}.jsonl").write_text("{}\n")
+        (d / "meta.json").write_text(json.dumps(metas))
+        rl.apply(["apply", "--tengoku", str(d / "t"), "--emissary", str(d / "e"), "--meta", str(d / "meta.json"), "--records", str(d / "rec")])
+        return d
+
+    def test_a_root_the_emissary_registry_already_has_is_refused(self):
+        with self.assertRaises(SystemExit) as c:
+            self._run({"grunbaum-lean": {"roots": ["ProjectionConstants"]}}, [self._meta("projectionconstants-lean", ["ProjectionConstants"])])
+        self.assertIn("projectionconstants-lean refused: root already registered by another library: ProjectionConstants (grunbaum-lean)", str(c.exception))
+
+    def test_two_libraries_of_one_batch_with_one_root_are_refused(self):
+        with self.assertRaises(SystemExit) as c:
+            self._run({}, [self._meta("first", ["Kostka"]), self._meta("second", ["kostka"])])
+        self.assertIn("second refused", str(c.exception))
+        self.assertIn("kostka (first)", str(c.exception))
+
+    def test_a_generic_root_is_refused_at_apply_too(self):
+        with self.assertRaises(SystemExit) as c:
+            self._run({}, [self._meta("jsp-000754-formalization", ["Challenge", "Submission"])])
+        self.assertIn("generic lean_lib root", str(c.exception))
+
+    def test_stale_ok_metadata_with_an_out_of_range_toolchain_is_refused_before_anything_is_written(self):
+        m = self._meta("nerdsniping", ["GridCircuit"]); m["toolchain"] = "leanprover/lean4:v4.36.0"
+        d = Path(tempfile.mkdtemp())
+        (d / "t/schemas").mkdir(parents=True); (d / "t/data/tentative").mkdir(parents=True); (d / "e").mkdir(); (d / "rec").mkdir()
+        before = json.dumps({"allowed": [], "licences": {}, "corpora": {}})
+        (d / "t/schemas/sources.json").write_text(before); (d / "e/sources.json").write_text(json.dumps({"sources": {}})); (d / "rec/nerdsniping.jsonl").write_text("{}\n")
+        (d / "meta.json").write_text(json.dumps([m]))
+        with self.assertRaises(SystemExit) as c:
+            rl.apply(["apply", "--tengoku", str(d / "t"), "--emissary", str(d / "e"), "--meta", str(d / "meta.json"), "--records", str(d / "rec")])
+        self.assertIn("nerdsniping refused: toolchain leanprover/lean4:v4.36.0 outside v4.31 to v4.34.1", str(c.exception))
+        self.assertEqual((d / "t/schemas/sources.json").read_text(), before)
+        self.assertEqual(json.loads((d / "e/sources.json").read_text()), {"sources": {}})
+        self.assertFalse((d / "t/data/tentative/nerdsniping.jsonl").exists())
+
+    def test_an_unreadable_emissary_registry_stops_apply(self):
+        d = Path(tempfile.mkdtemp()); (d / "t/schemas").mkdir(parents=True); (d / "meta.json").write_text(json.dumps([self._meta("good", ["Good"])]))
+        with self.assertRaises(SystemExit) as c:
+            rl.apply(["apply", "--tengoku", str(d / "t"), "--emissary", str(d / "missing"), "--meta", str(d / "meta.json"), "--records", str(d / "rec")])
+        self.assertIn("the emissary registry cannot be read", str(c.exception))
+
+    def test_distinct_roots_still_apply(self):
+        d = self._run({"other": {"roots": ["Other"]}}, [self._meta("good", ["Good"])])
+        self.assertTrue((d / "t/data/tentative/good.jsonl").exists())
 
 
 if __name__ == "__main__":
