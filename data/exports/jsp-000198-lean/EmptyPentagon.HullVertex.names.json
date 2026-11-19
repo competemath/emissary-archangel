@@ -1,0 +1,1 @@
+{"names":["Horton.exists_hull_vertex","Horton.Point"],"modules":["EmptyPentagon.HullVertex","EmptyPentagon.Definitions"],"moduleOf":{"Horton.exists_hull_vertex":"EmptyPentagon.HullVertex","Horton.Point":"EmptyPentagon.Definitions"},"deps":{"Horton.exists_hull_vertex":["Horton.Point"],"Horton.Point":[]}}
