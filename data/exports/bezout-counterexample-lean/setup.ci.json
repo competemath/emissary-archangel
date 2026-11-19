@@ -1,0 +1,44 @@
+{
+  "key": "bezout-counterexample-lean",
+  "repo": "https://github.com/Zelaron/bezout-counterexample-lean",
+  "commit": "9eda7550c5b8e890bcc2e987556331704a035800",
+  "toolchain": "leanprover/lean4:v4.34.1",
+  "roots": [
+    "BezoutCounterexample"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/bezout-counterexample-lean/repo",
+  "entries": 1124,
+  "modules": 43,
+  "exported": 43,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 607,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1124,
+    "kept": 1124,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 1118,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.34.1 (commit 5045d0056413266e57c625dcd7c365b10e377c52, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+5045d00",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "076e8e57707e + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 118710272,
+  "minutes": 27,
+  "finishedAt": "2026-11-19T22:49:33.430Z"
+}
