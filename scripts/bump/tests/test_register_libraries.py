@@ -260,5 +260,88 @@ class RefineSparse(unittest.TestCase):
         self.assertNotIn('"add", "-A"', body)
 
 
+class ToolchainRange(unittest.TestCase):
+    """the lane registers libraries from v4.31.0 to v4.34.1 only; batch 12's metadata step let v4.36.0 (nerdsniping) and v4.35.0 ones through"""
+
+    def test_real_toolchains_of_batches_8_to_13(self):
+        for tc in ("leanprover/lean4:v4.31.0", "leanprover/lean4:v4.32.2", "leanprover/lean4:v4.33.0-rc2", "leanprover/lean4:v4.34.0-rc1", "leanprover/lean4:v4.34.1", "v4.33.1"):
+            self.assertTrue(rl.toolchain_in_range(tc), tc)
+
+    def test_real_out_of_range_toolchains(self):
+        for tc in ("leanprover/lean4:v4.36.0", "leanprover/lean4:v4.35.0", "leanprover/lean4:v4.28.0", "leanprover/lean4:v4.30.1", "leanprover/lean4:nightly-2026-10-01", "", None):
+            self.assertFalse(rl.toolchain_in_range(tc), tc)
+
+
+class RootChecks(unittest.TestCase):
+    def test_real_case_projectionconstants_reuses_grunbaums_root(self):
+        taken = rl.registered_roots()  # the real registry of this checkout: grunbaum-lean (batch 11) is in it
+        self.assertEqual(taken["projectionconstants"], ["grunbaum-lean"])
+        why = rl.root_problems(["ProjectionConstants"], taken, "projectionconstants-lean")
+        self.assertEqual(why, ["root already registered by another library: ProjectionConstants (grunbaum-lean)"])
+
+    def test_real_case_mahler_measure_minima_reuses_pdt_leans_roots(self):
+        why = rl.root_problems(["PdtMahler", "PdtMahlerBox", "Other"], rl.registered_roots(), "mahler-measure-minima")
+        self.assertEqual(len(why), 1)
+        self.assertIn("PdtMahler (pdt-lean)", why[0])
+        self.assertIn("PdtMahlerBox (pdt-lean)", why[0])
+        self.assertNotIn("Other", why[0])
+
+    def test_a_library_does_not_clash_with_itself(self):
+        self.assertEqual(rl.root_problems(["ProjectionConstants"], rl.registered_roots(), "grunbaum-lean"), [])
+
+    def test_real_case_generic_roots(self):
+        # jsp-000754-formalization, spectral-norms-of-independent-entries-..., resolutionsemantics, srg266-nonexistence-lean
+        self.assertEqual(rl.root_problems(["Challenge", "ErdosProblems", "Submission"], {}), ["generic lean_lib root: Challenge, ErdosProblems, Submission"])
+        self.assertEqual(rl.root_problems(["Challenge", "GraphMatrices", "MI32", "Solution"], {}), ["generic lean_lib root: Challenge, Solution"])
+        self.assertEqual(rl.root_problems(["Paper"], {}), ["generic lean_lib root: Paper"])
+        self.assertEqual(rl.root_problems(["Main", "SRG266"], {}), ["generic lean_lib root: Main"])
+
+    def test_own_roots_pass(self):
+        self.assertEqual(rl.root_problems(["Tuza"], rl.registered_roots(), "tuza-lean"), [])
+        self.assertEqual(rl.root_problems(["WeightedChains", "WeightedChainsPalomar"], rl.registered_roots(), "weighted-chains-paper"), [])
+
+    def test_mutant_without_the_registry_a_reused_root_is_not_found(self):
+        self.assertEqual(rl.root_problems(["ProjectionConstants"], {}, "projectionconstants-lean"), [])
+
+    def test_the_registry_next_to_the_script_is_read(self):
+        self.assertGreater(len(rl.registered_roots()), 100)
+        self.assertEqual(rl.registered_roots("/nonexistent/sources.json"), {})
+
+
+class ApplyRoots(unittest.TestCase):
+    def _meta(self, key, roots):
+        return {"repo": "o/" + key, "key": key, "commit": "c" * 40, "licence": "MIT", "toolchain": "leanprover/lean4:v4.33.0", "roots": roots, "verdict": "ok"}
+
+    def _run(self, registry, metas):
+        d = Path(tempfile.mkdtemp())
+        (d / "t/schemas").mkdir(parents=True); (d / "t/data/tentative").mkdir(parents=True); (d / "e").mkdir(); (d / "rec").mkdir()
+        (d / "t/schemas/sources.json").write_text(json.dumps({"allowed": [], "licences": {}, "corpora": {}}))
+        (d / "e/sources.json").write_text(json.dumps({"sources": registry}))
+        for m in metas: (d / f"rec/{m['key']}.jsonl").write_text("{}\n")
+        (d / "meta.json").write_text(json.dumps(metas))
+        rl.apply(["apply", "--tengoku", str(d / "t"), "--emissary", str(d / "e"), "--meta", str(d / "meta.json"), "--records", str(d / "rec")])
+        return d
+
+    def test_a_root_the_emissary_registry_already_has_is_refused(self):
+        with self.assertRaises(SystemExit) as c:
+            self._run({"grunbaum-lean": {"roots": ["ProjectionConstants"]}}, [self._meta("projectionconstants-lean", ["ProjectionConstants"])])
+        self.assertIn("projectionconstants-lean refused: root already registered by another library: ProjectionConstants (grunbaum-lean)", str(c.exception))
+
+    def test_two_libraries_of_one_batch_with_one_root_are_refused(self):
+        with self.assertRaises(SystemExit) as c:
+            self._run({}, [self._meta("first", ["Kostka"]), self._meta("second", ["kostka"])])
+        self.assertIn("second refused", str(c.exception))
+        self.assertIn("kostka (first)", str(c.exception))
+
+    def test_a_generic_root_is_refused_at_apply_too(self):
+        with self.assertRaises(SystemExit) as c:
+            self._run({}, [self._meta("jsp-000754-formalization", ["Challenge", "Submission"])])
+        self.assertIn("generic lean_lib root", str(c.exception))
+
+    def test_distinct_roots_still_apply(self):
+        d = self._run({"other": {"roots": ["Other"]}}, [self._meta("good", ["Good"])])
+        self.assertTrue((d / "t/data/tentative/good.jsonl").exists())
+
+
 if __name__ == "__main__":
     unittest.main()
