@@ -1,0 +1,50 @@
+{
+  "key": "mahler-hansen-cograph",
+  "repo": "https://github.com/jeremypparker/mahler-hansen-cograph",
+  "commit": "c7639c5060f40d69b613bcbd637b1750f27b7e3f",
+  "toolchain": "leanprover/lean4:v4.34.0-rc1",
+  "roots": [
+    "Challenge",
+    "CographPortalFlagsAxiomAudit",
+    "CographPortalRestrictedProductAxiomAudit",
+    "Formalisation",
+    "GeneralFlagProductAllSizesAxiomAudit",
+    "GeneralFlagProductShuffleAxiomAudit",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/mahler-hansen-cograph/repo",
+  "entries": 990,
+  "modules": 76,
+  "exported": 76,
+  "failed": [],
+  "expansion": {
+    "expanded": 125,
+    "verbatim": 729,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 990,
+    "kept": 990,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 49,
+    "lineUnverified": 0,
+    "nameFixed": 956,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.34.0-rc1 (commit 3447a668783dbce1a8fdb97101dd067687b2b418, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+3447a66",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "b18d673bd29b + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 64765952,
+  "minutes": 20,
+  "finishedAt": "2026-11-19T08:10:30.388Z"
+}
