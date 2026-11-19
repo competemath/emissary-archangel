@@ -3221,6 +3221,140 @@
         "BezoutCounterexample"
       ],
       "licence": "MIT"
+    },
+    "grushkoneumanntheorem": {
+      "label": "grushkoneumanntheorem (Arthur742Ramos/GrushkoNeumannTheorem; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/Arthur742Ramos/GrushkoNeumannTheorem",
+      "commit": "ef1f70db49792bb9bdb0c40eeec48168fca53393",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "GrushkoNeumann",
+        "MarshallHall"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "kostkanumbers": {
+      "label": "kostkanumbers (NoahW314/KostkaNumbers; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/NoahW314/KostkaNumbers",
+      "commit": "135e49269833f4a760717b30777046d9629240df",
+      "toolchain": "leanprover/lean4:v4.32.0-rc1",
+      "roots": [
+        "KostkaNumbers"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "erdos884": {
+      "label": "erdos884 (honicky/erdos884; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/honicky/erdos884",
+      "commit": "323e9a01306df1e094b434beaa48c018370fe258",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "Erdos884"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "erdos176-nksqrtk-polynomial-bound-lean": {
+      "label": "erdos176-nksqrtk-polynomial-bound-lean (KitaKen1/erdos176-nksqrtk-polynomial-bound-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/KitaKen1/erdos176-nksqrtk-polynomial-bound-lean",
+      "commit": "19b2ad31c81207613f7cfdaa68467d3dca98b3b7",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "Erdos176Lean"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lean-ratfunc-witt-local-global": {
+      "label": "lean-ratfunc-witt-local-global (selpoG/lean-ratfunc-witt-local-global; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/selpoG/lean-ratfunc-witt-local-global",
+      "commit": "dc7e8240cc5f1b31d7149409142599e7de69c9a5",
+      "toolchain": "leanprover/lean4:v4.34.0",
+      "roots": [
+        "RatFuncWittLocalGlobal"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "jsp-000661-formalization": {
+      "label": "jsp-000661-formalization (Drag0ndddd1118/jsp-000661-formalization; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/Drag0ndddd1118/jsp-000661-formalization",
+      "commit": "2bcca8c5e6528f78866c86623ebda529e9058e25",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "Erdos804",
+        "JSP_000661"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "fried-conj-lean": {
+      "label": "fried-conj-lean (blawton/fried-conj-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/blawton/fried-conj-lean",
+      "commit": "610d659ea15af869553f6e3e79c432880d9b0ab0",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "B1s"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "gnm-lean": {
+      "label": "gnm-lean (JD-Jones-ASES/gnm-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/JD-Jones-ASES/gnm-lean",
+      "commit": "c9a75e1c81e5b7231a5a720ab544dd33f6a52ca1",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "GN",
+        "GNM"
+      ],
+      "licence": "MIT"
+    },
+    "formalizedsparse": {
+      "label": "formalizedsparse (YijunYuan/FormalizedSparse; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/YijunYuan/FormalizedSparse",
+      "commit": "be9fb43dded873bc7567b486e17e924823e10e41",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "FormalizedSparse"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lhymathlib": {
+      "label": "lhymathlib (luohaoyuan0420-w/lhyMathLib; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/luohaoyuan0420-w/lhyMathLib",
+      "commit": "f69123de02bacebb912891735c17310ba57ac0b3",
+      "toolchain": "leanprover/lean4:v4.34.0",
+      "roots": [
+        "LhyMathLib"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "hellingerrepolean4": {
+      "label": "hellingerrepolean4 (RamenSensei/HellingerRepoLean4; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/RamenSensei/HellingerRepoLean4",
+      "commit": "9d24bdff6158d2e9d7088d1ff39e40df8a7ace37",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "Hellinger"
+      ],
+      "licence": "MIT"
+    },
+    "ben-27-formalization": {
+      "label": "ben-27-formalization (xinjiegit/ben_27_formalization; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/xinjiegit/ben_27_formalization",
+      "commit": "f70352964007662e97a810c880abbfea1e2ea262",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "NUSLean"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "burning-path-token-graphs": {
+      "label": "burning-path-token-graphs (JJYYY-JJY/burning-path-token-graphs; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/JJYYY-JJY/burning-path-token-graphs",
+      "commit": "c7f4cea7719c00b19e12d7b8c7f7b0d59317f460",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "BurningPathTokenGraphs",
+        "BurningPathTokenGraphsTests"
+      ],
+      "licence": "Apache-2.0"
     }
   }
 }
