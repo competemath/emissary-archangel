@@ -3077,6 +3077,150 @@
         "MagicSquares"
       ],
       "licence": "MIT"
+    },
+    "geometric-brascamp-lieb": {
+      "label": "geometric-brascamp-lieb (hanyi162013-Yihan/geometric-brascamp-lieb; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/hanyi162013-Yihan/geometric-brascamp-lieb",
+      "commit": "9155169a5ba8f7db77c01c446430e50c0daceb7d",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "GeometricBrascampLieb"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "flt-stickelberger": {
+      "label": "flt-stickelberger (batchatco/flt-stickelberger; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/batchatco/flt-stickelberger",
+      "commit": "bd17273d2484bd70bef3d1b2e38bf233e502ba8c",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "Stickelberger"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "weighted-chains-paper": {
+      "label": "weighted-chains-paper (MJ141592/weighted-chains-paper; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/MJ141592/weighted-chains-paper",
+      "commit": "4813781abeaf9ed8f839aaaccd58733cc0f9cb69",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "WeightedChains",
+        "WeightedChainsPalomar"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "regularity-lemmata": {
+      "label": "regularity-lemmata (cameronfreer/regularity-lemmata; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/cameronfreer/regularity-lemmata",
+      "commit": "8e24d2db2c11ee6ae9e61ad2d70a6c01c4303c90",
+      "toolchain": "leanprover/lean4:v4.34.0-rc1",
+      "roots": [
+        "RegularityLemmata",
+        "RegularityLemmataExamples",
+        "RegularityLemmataGates"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "tuza-lean": {
+      "label": "tuza-lean (sichen-wang/tuza-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/sichen-wang/tuza-lean",
+      "commit": "5cae999212a06418941fa9c909529a4ff38e1e5e",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "Tuza"
+      ],
+      "licence": "MIT"
+    },
+    "congruence-phenomena-lean": {
+      "label": "congruence-phenomena-lean (ahaankallat/congruence-phenomena-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/ahaankallat/congruence-phenomena-lean",
+      "commit": "5a162bc172947b4d65138869ce1f91612609a2df",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "CongruenceTheory"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "croot-unit-fractions": {
+      "label": "croot-unit-fractions (H0W4RD-dev/croot-unit-fractions; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/H0W4RD-dev/croot-unit-fractions",
+      "commit": "c58a7d45114c3af27e6abb19dcfca9d82b49b4a1",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "Croot"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "sofa-formal": {
+      "label": "sofa-formal (RuifengCao/sofa-formal; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/RuifengCao/sofa-formal",
+      "commit": "6abd1d31986fce7dfa7966a142b5ced5a3f5153f",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "Sofa",
+        "SofaSubmission"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "srg266-nonexistence-lean": {
+      "label": "srg266-nonexistence-lean (kay-akiyama/srg266-nonexistence-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/kay-akiyama/srg266-nonexistence-lean",
+      "commit": "2ab79df2e924467f89f5ff561a1d15a536c56007",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "SRG266"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "rank3kum": {
+      "label": "rank3kum (afletcher22/Rank3KUM; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/afletcher22/Rank3KUM",
+      "commit": "27f8ea90b78c677f2a28b775e91907134f022842",
+      "toolchain": "leanprover/lean4:v4.33.0-rc2",
+      "roots": [
+        "Rank3KUM"
+      ],
+      "licence": "MIT"
+    },
+    "biyoneda": {
+      "label": "biyoneda (SpencerWoolfson/biyoneda; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/SpencerWoolfson/biyoneda",
+      "commit": "09169de7677d69166374a1e8f81cf8a91e5063be",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "Biyoneda"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "erdos278": {
+      "label": "erdos278 (yoshiyoyoyo44/erdos278; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/yoshiyoyoyo44/erdos278",
+      "commit": "66ff46ad30c302a0fcc19a2fb22d58a87eebf2cb",
+      "toolchain": "leanprover/lean4:v4.33.0-rc1",
+      "roots": [
+        "Erdos278"
+      ],
+      "licence": "MIT"
+    },
+    "nice-numbers-lean": {
+      "label": "nice-numbers-lean (Janzert/nice-numbers-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/Janzert/nice-numbers-lean",
+      "commit": "28b958ea28f901ec37beffc61f5c8e9d20530cdf",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "NiceNumbers"
+      ],
+      "licence": "MIT"
+    },
+    "bezout-counterexample-lean": {
+      "label": "bezout-counterexample-lean (Zelaron/bezout-counterexample-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/Zelaron/bezout-counterexample-lean",
+      "commit": "9eda7550c5b8e890bcc2e987556331704a035800",
+      "toolchain": "leanprover/lean4:v4.34.1",
+      "roots": [
+        "BezoutCounterexample"
+      ],
+      "licence": "MIT"
     }
   }
 }
