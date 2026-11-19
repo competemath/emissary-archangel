@@ -50,8 +50,9 @@ def requires_of(lakefile):
 
 
 def toolchain_in_range(tc):
-    """tc: 'leanprover/lean4:v4.33.0-rc2' or 'v4.33.0'. True from v4.31.0 to v4.34.1; anything else (a nightly, v4.36.0, no version) is out."""
-    m = re.search(r"v(\d+)\.(\d+)\.(\d+)", tc or "")
+    """tc: 'leanprover/lean4:v4.33.0', 'leanprover/lean4:v4.33.0-rc2' or 'v4.33.0'. True from v4.31.0 to v4.34.1; anything else is out: v4.36.0, a nightly,
+    a spelling that merely contains a version, no version (cubic on #219: the whole string must be a release or release candidate)."""
+    m = re.fullmatch(r"(?:leanprover/lean4:)?v(\d+)\.(\d+)\.(\d+)(?:-rc\d+)?", (tc or "").strip())
     return bool(m) and TOOLCHAIN_MIN <= tuple(int(x) for x in m.groups()) <= TOOLCHAIN_MAX
 
 
@@ -67,9 +68,9 @@ def root_problems(roots, taken, key=None):
 
 
 def registered_roots(path=None):
-    """{root lower-case: [keys]} from the emissary registry next to this script (sources.json); empty when it cannot be read"""
-    try: sources = json.load(open(path or Path(__file__).resolve().parent.parent / "sources.json"))["sources"]
-    except Exception: return {}
+    """{root lower-case: [keys]} from the emissary registry next to this script (sources.json). An unreadable registry raises: a check that cannot look
+    must not pass (cubic on #219)."""
+    sources = json.load(open(path or Path(__file__).resolve().parent.parent / "sources.json"))["sources"]
     out = {}
     for k, v in sources.items():
         for r in v.get("roots", []): out.setdefault(r.lower(), []).append(k)
@@ -97,7 +98,10 @@ def meta(repo):
     lake = contents(repo, "lakefile.toml", sha) or contents(repo, "lakefile.lean", sha) or ""
     out["roots"] = roots_of(lake)
     if not out["roots"]: why.append("no lean_lib roots")
-    else: why += root_problems(out["roots"], registered_roots(), out["key"])
+    else:
+        try: taken = registered_roots()
+        except Exception as e: why.append(f"registry unreadable, roots not checked: {type(e).__name__}: {e}")
+        else: why += root_problems(out["roots"], taken, out["key"])
     mf = contents(repo, "lake-manifest.json", sha)
     deps = requires_of(lake)
     if mf:
@@ -120,8 +124,11 @@ def apply(argv):
     keys = [m["key"] for m in M]
     if len(keys) != len(set(keys)):
         sys.exit("two repositories give the same key: " + ", ".join(sorted(k for k in set(keys) if keys.count(k) > 1)))
-    taken = registered_roots(f"{a.emissary}/sources.json")
+    try: taken = registered_roots(f"{a.emissary}/sources.json")
+    except Exception as e: sys.exit(f"the emissary registry cannot be read, so no root can be checked: {type(e).__name__}: {e}")
     for m in M:
+        if not toolchain_in_range(m.get("toolchain")):  # meta checks it too; stale or edited metadata that says ok must not get past here (cubic on #219)
+            sys.exit(f"{m['key']} refused: toolchain {m.get('toolchain')} outside v4.31 to v4.34.1")
         why = root_problems(m["roots"], taken, m["key"])
         if why: sys.exit(f"{m['key']} refused: " + "; ".join(why))
         for r in m["roots"]: taken.setdefault(r.lower(), []).append(m["key"])  # two libraries of one batch with one root are caught here too
