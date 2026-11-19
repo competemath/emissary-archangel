@@ -787,7 +787,7 @@ class KeepScript(unittest.TestCase):
         for m in ("Toy/A", "Toy/B", "Toy/Fine"):
             f = lib / ".lake" / "build" / "lib" / "lean" / (m + ".olean.ranges.json")
             f.parent.mkdir(parents=True, exist_ok=True)
-            f.write_text("[]")
+            f.write_text(json.dumps([["Toy.fine", 5, 5]]) if m == "Toy/Fine" else "[]")  # the source range of `theorem fine` in FINE
         (d / "deps.log").write_text("x:1:0: info: BUNDLE_KEEP " + json.dumps([["Toy.Fine", "Toy.fine"]]) + " BUNDLE_END\n")
         (d / "passed.json").write_text(json.dumps({"Toy.A": ["Toy.one_pos"], "Toy.B": ["Toy.uses_one_pos"], "Toy.Fine": ["Toy.fine"]}))
         (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy.git", "commit": "abc123"}))
@@ -823,7 +823,10 @@ class KeepScript(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("keeps nothing for 2 of 3 passed theorems", r.stderr)
         r = self._compose(d, lib, "--drop-modules", "Toy.A")
-        self.assertNotIn("keeps nothing for", r.stderr)  # the gap check is past: what was refused is no longer a gap of the keep list
+        self.assertEqual(r.returncode, 0, r.stderr)  # the whole compose succeeds, not only the gap check (cubic on #220)
+        self.assertNotIn("keeps nothing for", r.stderr)  # what was refused is no longer a gap of the keep list
+        rows = [json.loads(ln) for ln in (d / "bundle" / "manifest.jsonl").read_text().splitlines() if ln.strip()]
+        self.assertEqual([r_["name"] for r_ in rows], ["Toy.fine"])  # only the module that ships is in the manifest: Toy.A and its importer Toy.B are left out
 
     def test_the_threshold_is_two_percent(self):
         passed = {"M": [f"t{i}" for i in range(100)]}
