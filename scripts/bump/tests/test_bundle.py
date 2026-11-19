@@ -774,6 +774,60 @@ class KeepScript(unittest.TestCase):
         self.assertIn("unexpected token", r.stderr)
         self.assertFalse((d / "bundle").exists())
 
+    FINE = "import Mathlib.Data.Nat.Basic\n\nnamespace Toy\n\ntheorem fine : 1 = 1 := rfl\n\nend Toy\n"
+
+    def _toy_with_a_module_that_did_not_build(self):
+        """mahler-hansen-cograph (2026-11-19) in miniature: Toy.A does not build on the tree, Toy.B imports it, Toy.Fine is independent. Gate 2 passed a theorem in each, the keep step kept only Toy.Fine's."""
+        d = Path(tempfile.mkdtemp())
+        lib = d / "lib"
+        (lib / "Toy").mkdir(parents=True)
+        (lib / "Toy" / "A.lean").write_text(T.A)
+        (lib / "Toy" / "B.lean").write_text(T.B)
+        (lib / "Toy" / "Fine.lean").write_text(self.FINE)
+        for m in ("Toy/A", "Toy/B", "Toy/Fine"):
+            f = lib / ".lake" / "build" / "lib" / "lean" / (m + ".olean.ranges.json")
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(json.dumps([["Toy.fine", 5, 5]]) if m == "Toy/Fine" else "[]")  # the source range of `theorem fine` in FINE
+        (d / "deps.log").write_text("x:1:0: info: BUNDLE_KEEP " + json.dumps([["Toy.Fine", "Toy.fine"]]) + " BUNDLE_END\n")
+        (d / "passed.json").write_text(json.dumps({"Toy.A": ["Toy.one_pos"], "Toy.B": ["Toy.uses_one_pos"], "Toy.Fine": ["Toy.fine"]}))
+        (d / "setup.json").write_text(json.dumps({"repo": "https://github.com/o/toy.git", "commit": "abc123"}))
+        (d / "build.log").write_text("")
+        (d / "gate2.log").write_text("")
+        return d, lib
+
+    def _compose(self, d, lib, *extra):
+        return subprocess.run(
+            [sys.executable, str(HERE / "bundle.py"), "compose", *killed_arg(d), "--lib", str(lib), "--log", str(d / "deps.log"), "--passed", str(d / "passed.json"), "--meta", str(d / "setup.json"),
+             "--key", "toy-lib", "--toolchain", "tc", "--errors", str(d / "build.log"), "--gate2", str(d / "gate2.log"), "--out", str(d / "bundle"), "--src", str(d / "src"), *extra],
+            capture_output=True, text=True, check=False,
+        )
+
+    def test_keep_gap_input_leaves_out_the_dropped_modules_and_their_importers(self):
+        d, lib = self._toy_with_a_module_that_did_not_build()
+        passed = json.loads((d / "passed.json").read_text())
+        own = {"Toy.A", "Toy.B", "Toy.Fine"}
+        self.assertEqual(sorted(bundle.keep_gap_input(lib, passed, None, {}, own, set())), ["Toy.A", "Toy.B", "Toy.Fine"])  # no drop: every passed theorem is checked, as before
+        self.assertEqual(sorted(bundle.keep_gap_input(lib, passed, None, {}, own, {"Toy.A"})), ["Toy.Fine"])  # Toy.A and what imports it (Toy.B) are left out
+        self.assertEqual(sorted(bundle.keep_gap_input(lib, passed, None, {}, own, {"Toy.B"})), ["Toy.A", "Toy.Fine"])  # an importer dropped alone leaves its imports checked
+        self.assertEqual(bundle.keep_gaps(bundle.keep_gap_input(lib, passed, None, {}, own, {"Toy.A"}), {("Toy.Fine", "Toy.fine")}), [])
+
+    def test_mutant_without_the_drop_the_gaps_are_found(self):
+        d, lib = self._toy_with_a_module_that_did_not_build()
+        passed = json.loads((d / "passed.json").read_text())
+        gaps = bundle.keep_gaps(bundle.keep_gap_input(lib, passed, None, {}, {"Toy.A", "Toy.B", "Toy.Fine"}, set()), {("Toy.Fine", "Toy.fine")})
+        self.assertEqual(sorted(gaps), [("Toy.A", "Toy.one_pos"), ("Toy.B", "Toy.uses_one_pos")])
+
+    def test_compose_refuses_the_gap_without_the_drop_and_not_with_it(self):
+        d, lib = self._toy_with_a_module_that_did_not_build()
+        r = self._compose(d, lib)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("keeps nothing for 2 of 3 passed theorems", r.stderr)
+        r = self._compose(d, lib, "--drop-modules", "Toy.A")
+        self.assertEqual(r.returncode, 0, r.stderr)  # the whole compose succeeds, not only the gap check (cubic on #220)
+        self.assertNotIn("keeps nothing for", r.stderr)  # what was refused is no longer a gap of the keep list
+        rows = [json.loads(ln) for ln in (d / "bundle" / "manifest.jsonl").read_text().splitlines() if ln.strip()]
+        self.assertEqual([r_["name"] for r_ in rows], ["Toy.fine"])  # only the module that ships is in the manifest: Toy.A and its importer Toy.B are left out
+
     def test_the_threshold_is_two_percent(self):
         passed = {"M": [f"t{i}" for i in range(100)]}
         kept = {("M", f"t{i}") for i in range(100)}

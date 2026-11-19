@@ -192,6 +192,14 @@ def asked_only(passed: dict[str, list[str]], asked_names: list[str]) -> dict[str
     return {m: [n for n in ns if n in asked] for m, ns in passed.items()}
 
 
+def keep_gap_input(lib: Path, passed: dict[str, list[str]], asked_names: list[str] | None, already: dict[str, set[str]], own: set[str], drop_modules: set[str]) -> dict[str, list[str]]:
+    """The passed theorems whose keep-list entry is checked: those the keep step was asked about (`asked_names`, when given), that a module itself declares (`already`), and that sit in a module
+    which ships: not one of `drop_modules` or a module of the library that imports one of them, directly or through others (those are left out of the bundle, accounted for there)."""
+    checked = without_already(asked_only(passed, asked_names) if asked_names is not None else passed, already)
+    out = importers_closure(lib, sorted(own), drop_modules) if drop_modules else set()
+    return {m: ns for m, ns in checked.items() if m not in out}
+
+
 def check_keep_gaps(passed: dict[str, list[str]], kept: set[tuple[str, str]], log: str) -> None:
     """Refuse a bundle-deps log that leaves passed theorems out (see MAX_KEEP_GAP): the theorems would not be in the bundle and nothing would say so."""
     gaps = keep_gaps(passed, kept)
@@ -380,13 +388,17 @@ def compose(a: argparse.Namespace) -> None:
     if passed and not kept:  # the Lean step failed (an empty bundle would look like a library with nothing to keep)
         sys.exit("bundle-deps.log has no BUNDLE_KEEP line although theorems passed:\n" + "\n".join(log.splitlines()[-15:]))
     already = already_declared(Path(a.errors).read_text(errors="replace"))
-    check_keep_gaps(without_already(asked_only(passed, json.loads(Path(a.keep_input).read_text())["names"]) if a.keep_input else passed, already), kept, log)
     sidecars = {}
     base = lib / ".lake" / "build" / "lib" / "lean"
     for f in base.rglob("*.olean.ranges.json"):
         mod = ".".join(tb.esc(x) for x in str(f.relative_to(base))[: -len(".olean.ranges.json")].split("/"))
         sidecars[mod] = {n: (s, e) for n, s, e in json.loads(f.read_text())}
     own = set(sidecars)
+    # The keep log only has to cover what ships: `--drop-modules` (a module that does not build on the tree) and what imports it are left out below, so a passed theorem of such a module
+    # is no gap of the keep step. mahler-hansen-cograph (2026-11-19): one module did not build on the tree's Mathlib, its 49 importers had nothing kept, and a recut that dropped the
+    # module was still refused ("keeps nothing for 625 of 807") because this check ran on every passed theorem, dropped or not.
+    asked_drop = {m.strip() for m in (a.drop_modules or "").split(",") if m.strip()}
+    check_keep_gaps(keep_gap_input(lib, passed, json.loads(Path(a.keep_input).read_text())["names"] if a.keep_input else None, already, own, asked_drop), kept, log)
 
     def source_of(mod: str, const: str):
         names = sidecars.get(mod, {})
