@@ -1,0 +1,46 @@
+{
+  "key": "nkbesicovitch",
+  "repo": "https://github.com/CoolRmal/NKBesicovitch",
+  "commit": "e12e5981d840eb5ebdc25403691b3c63a9c7aff8",
+  "toolchain": "leanprover/lean4:v4.34.0-rc1",
+  "roots": [
+    "Challenge",
+    "NKBesicovitch",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/nkbesicovitch/repo",
+  "entries": 1114,
+  "modules": 323,
+  "exported": 323,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1114,
+    "kept": 1114,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 1114,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.34.0-rc1 (commit 3447a668783dbce1a8fdb97101dd067687b2b418, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+3447a66",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "b18d673bd29b + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 154128384,
+  "minutes": 19,
+  "finishedAt": "2026-11-19T08:57:45.373Z"
+}
