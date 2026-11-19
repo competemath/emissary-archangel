@@ -1,0 +1,44 @@
+{
+  "key": "erdos260",
+  "repo": "https://github.com/Hanziwww/erdos260",
+  "commit": "e708b584c9a3b54857f050d6b7efbecb8a5ea27a",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "Erdos260"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/erdos260/repo",
+  "entries": 1218,
+  "modules": 19,
+  "exported": 19,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1218,
+    "kept": 1218,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 33,
+    "lineUnverified": 0,
+    "nameFixed": 1218,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.0 (commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+8c9756b",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "4e7915201d3f + batch patch 6b97bc97d34f",
+    "node": "v22.23.5",
+    "runnerImage": "ubuntu26/20261116.202.1"
+  },
+  "exportsBytes": 20992000,
+  "minutes": 11,
+  "finishedAt": "2026-11-19T00:22:32.330Z"
+}
