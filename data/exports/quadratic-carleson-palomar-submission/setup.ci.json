@@ -1,0 +1,61 @@
+{
+  "key": "quadratic-carleson-palomar-submission",
+  "repo": "https://github.com/anastasiosfragkosmath/quadratic-carleson-palomar-submission",
+  "commit": "3d3cf4316acac4c23140059a78fb570b1440394b",
+  "toolchain": "leanprover/lean4:v4.34.0-rc2",
+  "roots": [
+    "Challenge",
+    "QuadraticCarleson",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/quadratic-carleson-palomar-submission/repo",
+  "entries": 3399,
+  "modules": 293,
+  "exported": 293,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 3399,
+    "kept": 3399,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 19,
+    "lineUnverified": 0,
+    "nameFixed": 3399,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "sharded": {
+    "records": 5,
+    "shards": [
+      5
+    ]
+  },
+  "tools": {
+    "lean": "4.34.0-rc2 (commit 6a10ac8c22beadecabdbb0919c2b50214762f91d, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+6a10ac8",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "483e011449cc + batch patch 6b97bc97d34f",
+    "node": "v22.23.4 | v22.23.5",
+    "runnerImage": "ubuntu26/20261111.196.1 | ubuntu26/20261116.202.1"
+  },
+  "exportsBytes": 139960320,
+  "minutes": 13,
+  "finishedAt": "2026-11-19T13:29:28.415Z",
+  "archive": {
+    "release": "exports-quadratic-carleson-palomar-submission",
+    "asset": "quadratic-carleson-palomar-submission@3d3cf4316aca-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-quadratic-carleson-palomar-submission/quadratic-carleson-palomar-submission@3d3cf4316aca-exports.tar.zst",
+    "bytes": 12803604,
+    "sha256": "9f7f602ba57fbd238ef6141cc39c951e12df80882a9ad4e28d018b45e803d0e0",
+    "files": 586,
+    "unpack": "tar --zstd -xf quadratic-carleson-palomar-submission@3d3cf4316aca-exports.tar.zst -C data/exports/quadratic-carleson-palomar-submission"
+  }
+}

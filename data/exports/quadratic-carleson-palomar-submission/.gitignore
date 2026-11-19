@@ -1,0 +1,4 @@
+# machine exports: in the release archive named by setup.ci.json (scripts/fetch-exports.mjs)
+*.ndjson
+*.names.json
+.archive-*
