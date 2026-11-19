@@ -1,0 +1,44 @@
+{
+  "key": "croot-unit-fractions",
+  "repo": "https://github.com/H0W4RD-dev/croot-unit-fractions",
+  "commit": "c58a7d45114c3af27e6abb19dcfca9d82b49b4a1",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "Croot"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/croot-unit-fractions/repo",
+  "entries": 166,
+  "modules": 14,
+  "exported": 14,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 166,
+    "kept": 166,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 166,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.1 (commit 819816b2e0a3bf405af45ae5c7af2491d8f5bee6, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+819816b",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 2260992,
+  "minutes": 4,
+  "finishedAt": "2026-11-19T22:57:12.917Z"
+}
