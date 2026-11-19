@@ -1,0 +1,1 @@
+{"names":["MagicSquares.star_jacobiSum","MagicSquares.jacobiSum_norm_eq_sqrt_card"],"modules":["MagicSquares.Jacobi.Norm"],"moduleOf":{"MagicSquares.star_jacobiSum":"MagicSquares.Jacobi.Norm","MagicSquares.jacobiSum_norm_eq_sqrt_card":"MagicSquares.Jacobi.Norm"},"deps":{"MagicSquares.star_jacobiSum":[],"MagicSquares.jacobiSum_norm_eq_sqrt_card":["MagicSquares.star_jacobiSum"]}}
