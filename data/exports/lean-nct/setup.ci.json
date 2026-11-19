@@ -1,0 +1,59 @@
+{
+  "key": "lean-nct",
+  "repo": "https://github.com/roos-j/lean-nct",
+  "commit": "412a206c3d6254058d78c0805dabefa735502af0",
+  "toolchain": "leanprover/lean4:v4.33.0-rc2",
+  "roots": [
+    "LeanNct"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lean-nct/repo",
+  "entries": 3743,
+  "modules": 25,
+  "exported": 25,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 2608,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 3743,
+    "kept": 3743,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 1,
+    "lineUnverified": 0,
+    "nameFixed": 3743,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "sharded": {
+    "records": 5,
+    "shards": [
+      5
+    ]
+  },
+  "tools": {
+    "lean": "4.33.0-rc2 (commit d8b18978322de05a8f3dba51ef03cf5461676c17, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+d8b1897",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "9fb131bb100e + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1 | ubuntu26/20261111.82.6"
+  },
+  "exportsBytes": 82796544,
+  "minutes": 17,
+  "finishedAt": "2026-11-19T04:31:51.725Z",
+  "archive": {
+    "release": "exports-lean-nct",
+    "asset": "lean-nct@412a206c3d62-exports.tar.zst",
+    "url": "https://github.com/competemath/emissary-archangel/releases/download/exports-lean-nct/lean-nct@412a206c3d62-exports.tar.zst",
+    "bytes": 8740846,
+    "sha256": "1116461a437658ee9456d4ee3efc4ce99e8032d602ebd545b3bc6bce93e3c40f",
+    "files": 50,
+    "unpack": "tar --zstd -xf lean-nct@412a206c3d62-exports.tar.zst -C data/exports/lean-nct"
+  }
+}
