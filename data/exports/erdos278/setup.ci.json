@@ -1,0 +1,44 @@
+{
+  "key": "erdos278",
+  "repo": "https://github.com/yoshiyoyoyo44/erdos278",
+  "commit": "66ff46ad30c302a0fcc19a2fb22d58a87eebf2cb",
+  "toolchain": "leanprover/lean4:v4.33.0-rc1",
+  "roots": [
+    "Erdos278"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/erdos278/repo",
+  "entries": 165,
+  "modules": 26,
+  "exported": 26,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 165,
+    "kept": 165,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 165,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.0-rc1 (commit 62eed1db4d67327ec8120be05f1a1b0847d74561, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+62eed1d",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "af5aa64bb914 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.82.6"
+  },
+  "exportsBytes": 3067904,
+  "minutes": 2,
+  "finishedAt": "2026-11-19T22:55:18.913Z"
+}
