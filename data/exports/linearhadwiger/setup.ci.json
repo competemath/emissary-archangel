@@ -1,0 +1,44 @@
+{
+  "key": "linearhadwiger",
+  "repo": "https://github.com/snorin239/LinearHadwiger",
+  "commit": "9ef0db5fbaba0c4bc15248b9ea83933c262559c1",
+  "toolchain": "leanprover/lean4:v4.32.1",
+  "roots": [
+    "HadwigerLean"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/linearhadwiger/repo",
+  "entries": 2611,
+  "modules": 557,
+  "exported": 557,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 2611,
+    "kept": 2611,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 2611,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.1 (commit f054605aea4b840552cca2e725580bffd1e1b704, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+f054605",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "86e4a3395074 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 534278144,
+  "minutes": 41,
+  "finishedAt": "2026-11-19T04:43:25.511Z"
+}
