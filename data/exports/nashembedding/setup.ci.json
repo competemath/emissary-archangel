@@ -1,0 +1,47 @@
+{
+  "key": "nashembedding",
+  "repo": "https://github.com/langlerangle/NashEmbedding",
+  "commit": "f8e753f8ddd0edfb21bf5c5dd08b0c25cdb63323",
+  "toolchain": "leanprover/lean4:v4.31.0",
+  "roots": [
+    "Challenge",
+    "NashEmbedding",
+    "NashEmbeddingTest",
+    "Solution"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/nashembedding/repo",
+  "entries": 695,
+  "modules": 47,
+  "exported": 47,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 695,
+    "kept": 695,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 1,
+    "lineUnverified": 0,
+    "nameFixed": 695,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.31.0 (commit 68218e876d2a38b1985b8590fff244a83c321783, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+68218e8",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "8554815c2dc6 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 21307392,
+  "minutes": 20,
+  "finishedAt": "2026-11-19T08:09:19.338Z"
+}
