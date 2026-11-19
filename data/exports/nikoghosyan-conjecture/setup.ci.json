@@ -1,0 +1,45 @@
+{
+  "key": "nikoghosyan-conjecture",
+  "repo": "https://github.com/canghaimeng/Nikoghosyan-conjecture",
+  "commit": "ccc8514d6801c4bce0bb00bf8a3061b0750c043c",
+  "toolchain": "leanprover/lean4:v4.34.1",
+  "roots": [
+    "Nikoghosyan",
+    "NikoghosyanPrerequisites"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/nikoghosyan-conjecture/repo",
+  "entries": 2995,
+  "modules": 119,
+  "exported": 119,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 2995,
+    "kept": 2995,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 22,
+    "lineUnverified": 0,
+    "nameFixed": 2995,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.34.1 (commit 5045d0056413266e57c625dcd7c365b10e377c52, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+5045d00",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "076e8e57707e + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 209092608,
+  "minutes": 7,
+  "finishedAt": "2026-11-19T08:47:18.230Z"
+}
