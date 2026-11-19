@@ -1,0 +1,44 @@
+{
+  "key": "congruence-phenomena-lean",
+  "repo": "https://github.com/ahaankallat/congruence-phenomena-lean",
+  "commit": "5a162bc172947b4d65138869ce1f91612609a2df",
+  "toolchain": "leanprover/lean4:v4.31.0",
+  "roots": [
+    "CongruenceTheory"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/congruence-phenomena-lean/repo",
+  "entries": 347,
+  "modules": 35,
+  "exported": 35,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 347,
+    "kept": 347,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 347,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.31.0 (commit 68218e876d2a38b1985b8590fff244a83c321783, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+68218e8",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "8554815c2dc6 + batch patch 6b97bc97d34f",
+    "node": "v22.23.5",
+    "runnerImage": "ubuntu26/20261116.202.1"
+  },
+  "exportsBytes": 5697536,
+  "minutes": 5,
+  "finishedAt": "2026-11-19T22:29:22.658Z"
+}
