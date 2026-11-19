@@ -3221,16 +3221,6 @@
         "BezoutCounterexample"
       ],
       "licence": "MIT"
-    },
-    "projectionconstants-lean": {
-      "label": "projectionconstants-lean (GiulianoBasso/ProjectionConstants-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
-      "repo": "https://github.com/GiulianoBasso/ProjectionConstants-lean",
-      "commit": "103de55445c5dd71ca313af6727ebfab16bc5328",
-      "toolchain": "leanprover/lean4:v4.34.1",
-      "roots": [
-        "ProjectionConstants"
-      ],
-      "licence": "Apache-2.0"
     }
   }
 }
