@@ -546,11 +546,15 @@ async function ensureClone() {
 // (lean-graph-proofs) and a Mathlib that was not materialised (lean-mathematical-commons) all stop here, before the registry PR merges and a setup run is spent on them.
 async function smoke() {
   await ensureToolchain()
-  const r = await run("lake", ["env", "true"], { cwd: REPO, timeoutMs: 30 * 60 * 1000 })
-  if (r.code !== 0) fail(`smoke ${key}: lake env true exited ${r.code}: ${r.tail.slice(-600)}`)
+  // the same dependency resolution as the real setup (it fetches a pin that is not reachable by hash and tries again), so the check refuses what setup would fail on and nothing else (cubic on #227)
+  if (!(await ensureDeps())) {
+    const r = await run("lake", ["env", "true"], { cwd: REPO, timeoutMs: 30 * 60 * 1000 })
+    fail(`smoke ${key}: the dependencies do not resolve (lake env true exited ${r.code}): ${r.tail.slice(-600)}`)
+  }
   const manifestPath = join(REPO, "lake-manifest.json")
-  const wantsMathlib = existsSync(manifestPath) && (JSON.parse(readFileSync(manifestPath, "utf8")).packages || []).some((p) => p.name === "mathlib")
-  const mathlib = join(REPO, ".lake", "packages", "mathlib")
+  const manifest = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, "utf8")) : {}
+  const wantsMathlib = (manifest.packages || []).some((p) => p.name === "mathlib")
+  const mathlib = join(REPO, manifest.packagesDir || ".lake/packages", "mathlib") // the manifest says where packages live (cubic on #227)
   if (wantsMathlib && !(existsSync(join(mathlib, "lakefile.toml")) || existsSync(join(mathlib, "lakefile.lean")))) fail(`smoke ${key}: the manifest requires mathlib but ${mathlib} has no lakefile after lake env true`)
   log(`smoke ${key}: ok (${src.toolchain}${wantsMathlib ? ", mathlib resolved" : ""})`)
 }
