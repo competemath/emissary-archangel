@@ -41,7 +41,7 @@ jobs:
               # added, or changed in anything the setup reads (repository, commit, toolchain, layout, roots...): only the label is free text (cubic on #227)
               strip = lambda e: {k: v for k, v in e.items() if k != "label"}
               keys = sorted(k for k, s in reg.items() if k not in old or strip(s) != strip(old[k]))
-              changed = subprocess.run(["git", "diff", "--name-only", os.environ["BASE"], os.environ["HEAD"]], capture_output=True, text=True).stdout.split()
+              changed = subprocess.run(["git", "diff", "--name-only", os.environ["BASE"], os.environ["HEAD"]], capture_output=True, text=True, check=True).stdout.split()  # check=True: a failed diff stops the plan; it must not read as "nothing changed" (cubic on #227)
               if not keys and any(f in ("scripts/setup-source.mjs", ".github/workflows/registration-smoke.yml") for f in changed):
                   # a change of the check itself is exercised on a library that is known to pass (cubic on #227)
                   keys = [k for k in ("forcing",) if k in reg]
