@@ -1,0 +1,45 @@
+{
+  "key": "lmlf",
+  "repo": "https://github.com/jaumededios/LMLF",
+  "commit": "00f4ab46c750d006319066f44115a218c1cc4c62",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "LMLF",
+    "LMLFTest"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lmlf/repo",
+  "entries": 374,
+  "modules": 34,
+  "exported": 34,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 374,
+    "kept": 374,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 374,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.1 (commit 819816b2e0a3bf405af45ae5c7af2491d8f5bee6, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+819816b",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 4386816,
+  "minutes": 5,
+  "finishedAt": "2026-11-20T11:57:56.332Z"
+}
