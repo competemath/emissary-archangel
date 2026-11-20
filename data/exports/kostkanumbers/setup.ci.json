@@ -1,0 +1,44 @@
+{
+  "key": "kostkanumbers",
+  "repo": "https://github.com/NoahW314/KostkaNumbers",
+  "commit": "135e49269833f4a760717b30777046d9629240df",
+  "toolchain": "leanprover/lean4:v4.32.0-rc1",
+  "roots": [
+    "KostkaNumbers"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/kostkanumbers/repo",
+  "entries": 469,
+  "modules": 44,
+  "exported": 44,
+  "failed": [],
+  "expansion": {
+    "expanded": 54,
+    "verbatim": 59,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 469,
+    "kept": 469,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 35,
+    "lineUnverified": 0,
+    "nameFixed": 219,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.0-rc1 (commit b4812ae53eea93439ad5dce5a5c26591c31cb697, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+b4812ae",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "3de59f10bc4b + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 24141824,
+  "minutes": 11,
+  "finishedAt": "2026-11-20T07:04:02.078Z"
+}
