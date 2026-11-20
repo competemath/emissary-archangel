@@ -1,0 +1,44 @@
+{
+  "key": "moran-lean",
+  "repo": "https://github.com/123yhxie-a11y/moran-lean",
+  "commit": "666de78ca109bf9e5de6db41c17ccb9e93afb8fc",
+  "toolchain": "leanprover/lean4:v4.32.1",
+  "roots": [
+    "Moran"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/moran-lean/repo",
+  "entries": 447,
+  "modules": 1,
+  "exported": 1,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 447,
+    "kept": 447,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 447,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.1 (commit f054605aea4b840552cca2e725580bffd1e1b704, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+f054605",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "86e4a3395074 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 2285568,
+  "minutes": 3,
+  "finishedAt": "2026-11-20T09:54:51.965Z"
+}
