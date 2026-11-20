@@ -3315,16 +3315,6 @@
       ],
       "licence": "Apache-2.0"
     },
-    "lhymathlib": {
-      "label": "lhymathlib (luohaoyuan0420-w/lhyMathLib; registered from the tengoku-osint scan, FATE-X-relevant)",
-      "repo": "https://github.com/luohaoyuan0420-w/lhyMathLib",
-      "commit": "f69123de02bacebb912891735c17310ba57ac0b3",
-      "toolchain": "leanprover/lean4:v4.34.0",
-      "roots": [
-        "LhyMathLib"
-      ],
-      "licence": "Apache-2.0"
-    },
     "hellingerrepolean4": {
       "label": "hellingerrepolean4 (RamenSensei/HellingerRepoLean4; registered from the tengoku-osint scan, FATE-X-relevant)",
       "repo": "https://github.com/RamenSensei/HellingerRepoLean4",
