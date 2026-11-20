@@ -1,0 +1,49 @@
+{
+  "key": "jsp000958-lean",
+  "repo": "https://github.com/randyxian08/jsp000958-lean",
+  "commit": "15d93105219e944a29b6c5c0759d3ab90e7db7d9",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "roots": [
+    "Randy1153"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/jsp000958-lean/repo",
+  "entries": 1197,
+  "modules": 67,
+  "exported": 66,
+  "failed": [
+    {
+      "module": "Randy1153.ClassicalBound.Synchronization",
+      "why": "does not compile at the library's own commit: error: Randy1153/ClassicalBound/Synchronization.lean:68:8: Type mismatch: After simplification, term"
+    }
+  ],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1197,
+    "kept": 1197,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 114,
+    "lineUnverified": 0,
+    "nameFixed": 1197,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.0 (commit d8b18978322de05a8f3dba51ef03cf5461676c17, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+d8b1897",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 30519296,
+  "minutes": 5,
+  "finishedAt": "2026-11-20T11:14:26.692Z"
+}
