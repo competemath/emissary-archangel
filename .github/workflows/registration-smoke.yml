@@ -1,0 +1,78 @@
+name: registration-smoke
+# A registry PR must not register a library that cannot even be set up. The static checks of scripts/register_libraries.py only read files; this runs the first minutes of a real setup
+# (scripts/setup-source.mjs --phase smoke: toolchain, clone at the pinned commit, `lake env true`, Mathlib resolved) for every library the PR adds or re-pins.
+# Real cases it would have stopped (2026-11-20): lhymathlib (`require mathlib from "../mathlib4"`), lean-graph-proofs (a manifest name Lake cannot read), lean-mathematical-commons (Mathlib not materialised), thurston23.
+on:
+  pull_request:
+    paths: [sources.json, scripts/setup-source.mjs, .github/workflows/registration-smoke.yml]
+  workflow_dispatch:
+    inputs:
+      keys:
+        description: "Space-separated source keys to check (empty: none; used to try the check on libraries that are already registered)."
+        required: false
+        default: ""
+
+permissions: {}
+
+concurrency:
+  group: registration-smoke-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions: { contents: read }
+    outputs:
+      keys: ${{ steps.plan.outputs.keys }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { filter: "blob:none", fetch-depth: 1, sparse-checkout: "sources.json", sparse-checkout-cone-mode: false, persist-credentials: false }  # not the whole history: fetch-depth 0 of this repository ran past the 5 minute limit (proof run, 2026-11-20)
+      - id: plan
+        env: { KEYS: "${{ inputs.keys }}", BASE: "${{ github.event.pull_request.base.sha }}", HEAD: "${{ github.sha }}" }
+        run: |
+          [ -z "$BASE" ] || { git fetch -q --depth=1 --filter=blob:none origin "$BASE" "$HEAD"; }
+          python3 - <<'PY'
+          import json, os, subprocess
+          reg = json.load(open("sources.json"))["sources"]
+          keys = os.environ["KEYS"].split()
+          if not keys and os.environ.get("BASE"):
+              old = json.loads(subprocess.run(["git", "show", os.environ["BASE"] + ":sources.json"], capture_output=True, text=True, check=True).stdout)["sources"]
+              # added, or changed in anything the setup reads (repository, commit, toolchain, layout, roots...): only the label is free text (cubic on #227)
+              strip = lambda e: {k: v for k, v in e.items() if k != "label"}
+              keys = sorted(k for k, s in reg.items() if k not in old or strip(s) != strip(old[k]))
+              changed = subprocess.run(["git", "diff", "--name-only", os.environ["BASE"], os.environ["HEAD"]], capture_output=True, text=True).stdout.split()
+              if not keys and any(f in ("scripts/setup-source.mjs", ".github/workflows/registration-smoke.yml") for f in changed):
+                  # a change of the check itself is exercised on a library that is known to pass (cubic on #227)
+                  keys = [k for k in ("forcing",) if k in reg]
+          unknown = [k for k in keys if k not in reg]
+          assert not unknown, f"unknown keys: {unknown}"
+          print(f"{len(keys)} libraries to smoke-check: {' '.join(keys)}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write("keys=" + json.dumps(keys) + "\n")
+          PY
+
+  smoke:
+    needs: plan
+    if: needs.plan.outputs.keys != '[]'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 40
+    permissions: { contents: read }
+    strategy:
+      fail-fast: false
+      max-parallel: 4   # runners are shared with the tree's gate and merge queue
+      matrix:
+        key: ${{ fromJSON(needs.plan.outputs.keys) }}
+    env:
+      KEY: ${{ matrix.key }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with: { filter: "blob:none", sparse-checkout: "scripts", persist-credentials: false }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: "22" }
+      - name: elan
+        run: |
+          for try in $(seq 1 20); do curl --proto '=https' --tlsv1.2 -sSfL --max-time 120 -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh && echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  elan-init.sh" | sha256sum -c - && timeout 300 sh elan-init.sh -y --default-toolchain none && break; [ "$try" -lt 20 ] || exit 1; echo "::notice::the Lean installer failed (try $try of 20): again in 30 s"; sleep 30; done
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Smoke-check ${{ matrix.key }}
+        run: node scripts/setup-source.mjs "$KEY" --phase smoke
