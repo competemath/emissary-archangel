@@ -1,0 +1,44 @@
+{
+  "key": "shearertrianglefreeind",
+  "repo": "https://github.com/Pjotr5/ShearerTriangleFreeInd",
+  "commit": "e23808a95cd600a39f252007b60582588317d65c",
+  "toolchain": "leanprover/lean4:v4.34.1",
+  "roots": [
+    "ShearerTriangleFreeInd"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/shearertrianglefreeind/repo",
+  "entries": 256,
+  "modules": 4,
+  "exported": 4,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 93,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 256,
+    "kept": 256,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 70,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.34.1 (commit 5045d0056413266e57c625dcd7c365b10e377c52, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+5045d00",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "076e8e57707e + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 1384448,
+  "minutes": 5,
+  "finishedAt": "2026-11-20T13:43:15.271Z"
+}
