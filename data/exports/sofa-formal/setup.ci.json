@@ -1,0 +1,45 @@
+{
+  "key": "sofa-formal",
+  "repo": "https://github.com/RuifengCao/sofa-formal",
+  "commit": "6abd1d31986fce7dfa7966a142b5ced5a3f5153f",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "Sofa",
+    "SofaSubmission"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/sofa-formal/repo",
+  "entries": 2280,
+  "modules": 85,
+  "exported": 85,
+  "failed": [],
+  "expansion": {
+    "expanded": 955,
+    "verbatim": 2391,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 2280,
+    "kept": 2280,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 1,
+    "nameFixed": 2280,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.1 (commit 819816b2e0a3bf405af45ae5c7af2491d8f5bee6, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+819816b",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.5",
+    "runnerImage": "ubuntu26/20261116.202.1"
+  },
+  "exportsBytes": 51003392,
+  "minutes": 54,
+  "finishedAt": "2026-11-20T03:45:39.710Z"
+}
