@@ -1,0 +1,44 @@
+{
+  "key": "quartet-distance-bandelt-dress",
+  "repo": "https://github.com/rvazdev-ex/quartet_distance_bandelt_dress",
+  "commit": "e904dcf3ae1208ad70c8d0677d6f78e13d33986f",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "QuartetDistance"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/quartet-distance-bandelt-dress/repo",
+  "entries": 698,
+  "modules": 22,
+  "exported": 22,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 698,
+    "kept": 698,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 698,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.0 (commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+8c9756b",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "4e7915201d3f + batch patch 6b97bc97d34f",
+    "node": "v22.23.5",
+    "runnerImage": "ubuntu26/20261116.202.1"
+  },
+  "exportsBytes": 12042240,
+  "minutes": 7,
+  "finishedAt": "2026-11-20T22:14:06.012Z"
+}
