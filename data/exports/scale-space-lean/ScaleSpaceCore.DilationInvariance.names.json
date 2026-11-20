@@ -1,0 +1,1 @@
+{"names":["ScaleSpace.dilation_invariance"],"modules":["ScaleSpaceCore.DilationInvariance"],"moduleOf":{"ScaleSpace.dilation_invariance":"ScaleSpaceCore.DilationInvariance"},"deps":{"ScaleSpace.dilation_invariance":[]}}
