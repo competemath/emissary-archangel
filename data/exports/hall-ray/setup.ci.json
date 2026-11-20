@@ -1,0 +1,44 @@
+{
+  "key": "hall-ray",
+  "repo": "https://github.com/K-Yamada-2002/hall-ray",
+  "commit": "a584e5620124d23c709e3bbdc66db8b8b0586310",
+  "toolchain": "leanprover/lean4:v4.32.1",
+  "roots": [
+    "HallRay"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/hall-ray/repo",
+  "entries": 180,
+  "modules": 8,
+  "exported": 8,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 180,
+    "kept": 180,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 7,
+    "lineUnverified": 0,
+    "nameFixed": 180,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.1 (commit f054605aea4b840552cca2e725580bffd1e1b704, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+f054605",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "86e4a3395074 + batch patch 6b97bc97d34f",
+    "node": "v22.23.5",
+    "runnerImage": "ubuntu26/20261116.202.1"
+  },
+  "exportsBytes": 1720320,
+  "minutes": 6,
+  "finishedAt": "2026-11-20T20:28:07.531Z"
+}
