@@ -1,0 +1,46 @@
+{
+  "key": "regularity-lemmata",
+  "repo": "https://github.com/cameronfreer/regularity-lemmata",
+  "commit": "8e24d2db2c11ee6ae9e61ad2d70a6c01c4303c90",
+  "toolchain": "leanprover/lean4:v4.34.0-rc1",
+  "roots": [
+    "RegularityLemmata",
+    "RegularityLemmataExamples",
+    "RegularityLemmataGates"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/regularity-lemmata/repo",
+  "entries": 1968,
+  "modules": 161,
+  "exported": 161,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1968,
+    "kept": 1968,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 1,
+    "lineUnverified": 0,
+    "nameFixed": 1968,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.34.0-rc1 (commit 3447a668783dbce1a8fdb97101dd067687b2b418, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+3447a66",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "b18d673bd29b + batch patch 6b97bc97d34f",
+    "node": "v22.23.5",
+    "runnerImage": "ubuntu26/20261116.202.1"
+  },
+  "exportsBytes": 36855808,
+  "minutes": 7,
+  "finishedAt": "2026-11-20T02:14:57.509Z"
+}
