@@ -1,0 +1,45 @@
+{
+  "key": "negative-power-means",
+  "repo": "https://github.com/marcotom/Negative-Power-Means",
+  "commit": "8d9452844a62864ff6fc54ee6f11473fde6d98cd",
+  "toolchain": "leanprover/lean4:v4.32.2",
+  "roots": [
+    "BoundaryProofs",
+    "HiaiLimPowerMeans"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/negative-power-means/repo",
+  "entries": 208,
+  "modules": 21,
+  "exported": 21,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 208,
+    "kept": 208,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 8,
+    "lineUnverified": 0,
+    "nameFixed": 208,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.2 (commit f3b06c705e6c85f5314019d5d3baab0fec5b580c, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+f3b06c7",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "86e4a3395074 + batch patch 6b97bc97d34f",
+    "node": "v22.23.5",
+    "runnerImage": "ubuntu26/20261116.202.1"
+  },
+  "exportsBytes": 4456448,
+  "minutes": 3,
+  "finishedAt": "2026-11-20T12:42:56.459Z"
+}
