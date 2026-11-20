@@ -3373,16 +3373,6 @@
       ],
       "licence": "MIT"
     },
-    "forcing": {
-      "label": "forcing (cameronfreer/forcing; registered from the tengoku-osint scan, FATE-X-relevant)",
-      "repo": "https://github.com/cameronfreer/forcing",
-      "commit": "5d77761d21459022f052bb92e1ba3c92bbbe2342",
-      "toolchain": "leanprover/lean4:v4.32.2",
-      "roots": [
-        "Forcing"
-      ],
-      "licence": "Apache-2.0"
-    },
     "qharm": {
       "label": "qharm (BrandonMYates/qharm; registered from the tengoku-osint scan, FATE-X-relevant)",
       "repo": "https://github.com/BrandonMYates/qharm",
@@ -3463,16 +3453,6 @@
         "LMLFTest"
       ],
       "licence": "MIT"
-    },
-    "lean-mathematical-commons": {
-      "label": "lean-mathematical-commons (KokunoYumeto/lean-mathematical-commons; registered from the tengoku-osint scan, FATE-X-relevant)",
-      "repo": "https://github.com/KokunoYumeto/lean-mathematical-commons",
-      "commit": "85084ee73972862cd20dabab2cd7f7a4619c1c3b",
-      "toolchain": "leanprover/lean4:v4.31.0",
-      "roots": [
-        "MathematicalCommons"
-      ],
-      "licence": "Apache-2.0"
     },
     "erdos-815-lean": {
       "label": "erdos-815-lean (noahbenjamin1994/erdos-815-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
