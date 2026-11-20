@@ -1,0 +1,44 @@
+{
+  "key": "rank3kum",
+  "repo": "https://github.com/afletcher22/Rank3KUM",
+  "commit": "27f8ea90b78c677f2a28b775e91907134f022842",
+  "toolchain": "leanprover/lean4:v4.33.0-rc2",
+  "roots": [
+    "Rank3KUM"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/rank3kum/repo",
+  "entries": 251,
+  "modules": 47,
+  "exported": 47,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 251,
+    "kept": 251,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 251,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.0-rc2 (commit d8b18978322de05a8f3dba51ef03cf5461676c17, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+d8b1897",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "9fb131bb100e + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.82.6"
+  },
+  "exportsBytes": 8601600,
+  "minutes": 4,
+  "finishedAt": "2026-11-20T02:11:58.086Z"
+}
