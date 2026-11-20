@@ -27,10 +27,11 @@ jobs:
       keys: ${{ steps.plan.outputs.keys }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with: { fetch-depth: 0, persist-credentials: false }
+        with: { filter: "blob:none", fetch-depth: 1, sparse-checkout: "sources.json", sparse-checkout-cone-mode: false, persist-credentials: false }  # not the whole history: fetch-depth 0 of this repository ran past the 5 minute limit (proof run, 2026-11-20)
       - id: plan
         env: { KEYS: "${{ inputs.keys }}", BASE: "${{ github.event.pull_request.base.sha }}" }
         run: |
+          [ -z "$BASE" ] || git fetch -q --depth=1 --filter=blob:none origin "$BASE"
           python3 - <<'PY'
           import json, os, subprocess
           reg = json.load(open("sources.json"))["sources"]
