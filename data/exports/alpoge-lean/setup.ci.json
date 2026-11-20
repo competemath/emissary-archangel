@@ -1,0 +1,44 @@
+{
+  "key": "alpoge-lean",
+  "repo": "https://github.com/alerad/alpoge-lean",
+  "commit": "b8eec94711a9b73151929b78cbd7cb999a008590",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "Alpoge"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/alpoge-lean/repo",
+  "entries": 177,
+  "modules": 11,
+  "exported": 11,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 122,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 177,
+    "kept": 177,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 176,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.0 (commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+8c9756b",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "4e7915201d3f + batch patch 6b97bc97d34f",
+    "node": "v22.23.5",
+    "runnerImage": "ubuntu26/20261116.88.1"
+  },
+  "exportsBytes": 2838528,
+  "minutes": 6,
+  "finishedAt": "2026-11-20T20:14:06.448Z"
+}
