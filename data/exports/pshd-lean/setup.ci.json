@@ -1,0 +1,44 @@
+{
+  "key": "pshd-lean",
+  "repo": "https://github.com/MingchenXia/pshd-lean",
+  "commit": "0f659d78f788b34592f4df1d951174ecdc3d88e4",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "PshLines"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/pshd-lean/repo",
+  "entries": 984,
+  "modules": 147,
+  "exported": 147,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 984,
+    "kept": 984,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 30,
+    "lineUnverified": 0,
+    "nameFixed": 984,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.1 (commit 819816b2e0a3bf405af45ae5c7af2491d8f5bee6, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+819816b",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.5",
+    "runnerImage": "ubuntu26/20261116.202.1"
+  },
+  "exportsBytes": 43917312,
+  "minutes": 8,
+  "finishedAt": "2026-11-20T22:01:20.295Z"
+}
