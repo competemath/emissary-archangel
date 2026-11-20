@@ -1,0 +1,44 @@
+{
+  "key": "qharm",
+  "repo": "https://github.com/BrandonMYates/qharm",
+  "commit": "27f42bc146a647a47ce040e2d8be434d1faef856",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "QHarm"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/qharm/repo",
+  "entries": 334,
+  "modules": 21,
+  "exported": 21,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 334,
+    "kept": 334,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 334,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.0 (commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+8c9756b",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "4e7915201d3f + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 3575808,
+  "minutes": 7,
+  "finishedAt": "2026-11-20T13:30:32.129Z"
+}
