@@ -3717,6 +3717,56 @@
         "OneEdgeInstability"
       ],
       "licence": "Apache-2.0"
+    },
+    "lean-formalization-of-an-inequality-for-strongly-regular-graphs": {
+      "label": "lean-formalization-of-an-inequality-for-strongly-regular-graphs (Diudiutse/Lean-Formalization-of-an-Inequality-for-Strongly-Regular-Graphs; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/Diudiutse/Lean-Formalization-of-an-Inequality-for-Strongly-Regular-Graphs",
+      "commit": "f84a94a03dba217084eb5b74566ee79a1d6d295e",
+      "toolchain": "leanprover/lean4:v4.33.0-rc1",
+      "roots": [
+        "SRGInequality"
+      ],
+      "licence": "MIT"
+    },
+    "grlab": {
+      "label": "grlab (BrandonMYates/grlab; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/BrandonMYates/grlab",
+      "commit": "88aa2e75dc1bb7fb06e33c51c2447acb456edd4a",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "GRLab"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "erdos-263-lean": {
+      "label": "erdos-263-lean (arex1337/erdos-263-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/arex1337/erdos-263-lean",
+      "commit": "db50c38c3f6a060fe67c17edf029606d561826a2",
+      "toolchain": "leanprover/lean4:v4.32.2",
+      "roots": [
+        "Erdos263"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "ramanujan-tau-misses-primes": {
+      "label": "ramanujan-tau-misses-primes (AxiomMath/ramanujan-tau-misses-primes; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/AxiomMath/ramanujan-tau-misses-primes",
+      "commit": "58669f754852dbd4b7afa061b0272bd93ecf35b4",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "RamanujanTauMissesPrimes"
+      ],
+      "licence": "MIT"
+    },
+    "jsp-000907-lean": {
+      "label": "jsp-000907-lean (qkkqk1234/jsp-000907-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/qkkqk1234/jsp-000907-lean",
+      "commit": "f820373fea69f3f959cdaaf3a1d9dd70ce6a3e1a",
+      "toolchain": "leanprover/lean4:v4.34.0",
+      "roots": [
+        "JSP907"
+      ],
+      "licence": "Apache-2.0"
     }
   }
 }
