@@ -3355,6 +3355,98 @@
         "BurningPathTokenGraphsTests"
       ],
       "licence": "Apache-2.0"
+    },
+    "2dkakeyaconjecture": {
+      "label": "2dkakeyaconjecture (FrankieNC/2DKakeyaConjecture; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/FrankieNC/2DKakeyaConjecture",
+      "commit": "e920f2cec812d474228b9930f1db116e6eafc896",
+      "toolchain": "leanprover/lean4:v4.33.0-rc2",
+      "roots": [
+        "BesicovitchSet",
+        "ForMathlib"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "jsp-000936-unit-circle-lean": {
+      "label": "jsp-000936-unit-circle-lean (Wang060919/jsp-000936-unit-circle-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/Wang060919/jsp-000936-unit-circle-lean",
+      "commit": "3da865ad51c5d1f8d9a210a6eec87580fa28e4a8",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "UnitCircleInterpolation"
+      ],
+      "licence": "MIT"
+    },
+    "observer-equivariance-lean": {
+      "label": "observer-equivariance-lean (gustafGitHub/observer-equivariance-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/gustafGitHub/observer-equivariance-lean",
+      "commit": "783cc19a12556f5be8f7579decd4f2e4a5fd4292",
+      "toolchain": "leanprover/lean4:v4.31.0-rc1",
+      "roots": [
+        "ObserverEquivariance"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lean-graph-proofs": {
+      "label": "lean-graph-proofs (VictorLiwentao/lean-graph-proofs; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/VictorLiwentao/lean-graph-proofs",
+      "commit": "979c01c2ad70ba67e1a2f50346322576ec04ad4a",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "LeanGraphProofs"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "jsp000958-lean": {
+      "label": "jsp000958-lean (randyxian08/jsp000958-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/randyxian08/jsp000958-lean",
+      "commit": "15d93105219e944a29b6c5c0759d3ab90e7db7d9",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "Randy1153"
+      ],
+      "licence": "MIT"
+    },
+    "the-iwasawa-tower-law-for-ramanujan-s-third-order-mock-theta-function": {
+      "label": "the-iwasawa-tower-law-for-ramanujan-s-third-order-mock-theta-function (Ghostintheshell-iuseArchbtw/The-Iwasawa-Tower-Law-for-Ramanujan-s-Third-Order-Mock-Theta-Function; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/Ghostintheshell-iuseArchbtw/The-Iwasawa-Tower-Law-for-Ramanujan-s-Third-Order-Mock-Theta-Function",
+      "commit": "a77289c0458dddb3307e0571e40c3059b2f66ed5",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "IwasawaTower"
+      ],
+      "licence": "MIT"
+    },
+    "lmlf": {
+      "label": "lmlf (jaumededios/LMLF; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/jaumededios/LMLF",
+      "commit": "00f4ab46c750d006319066f44115a218c1cc4c62",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "LMLF",
+        "LMLFTest"
+      ],
+      "licence": "MIT"
+    },
+    "lean-mathematical-commons": {
+      "label": "lean-mathematical-commons (KokunoYumeto/lean-mathematical-commons; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/KokunoYumeto/lean-mathematical-commons",
+      "commit": "85084ee73972862cd20dabab2cd7f7a4619c1c3b",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "MathematicalCommons"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "erdos-815-lean": {
+      "label": "erdos-815-lean (noahbenjamin1994/erdos-815-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/noahbenjamin1994/erdos-815-lean",
+      "commit": "bce29bcdc1185acc497c33a35a67e8474dffab80",
+      "toolchain": "leanprover/lean4:v4.34.0",
+      "roots": [
+        "Erdos815"
+      ],
+      "licence": "Apache-2.0"
     }
   }
 }
