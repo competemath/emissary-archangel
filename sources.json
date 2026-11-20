@@ -3355,6 +3355,88 @@
         "BurningPathTokenGraphsTests"
       ],
       "licence": "Apache-2.0"
+    },
+    "jsp940-erdos1133-formalization": {
+      "label": "jsp940-erdos1133-formalization (peilinliu66-dev/jsp940-erdos1133-formalization; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/peilinliu66-dev/jsp940-erdos1133-formalization",
+      "commit": "83ab7d38a4abbdfc1c9509cfbb7b49514cca217e",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "Erdos1133",
+        "Erdos1152"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "cayley-bacharach": {
+      "label": "cayley-bacharach (jpbald93/cayley-bacharach; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/jpbald93/cayley-bacharach",
+      "commit": "d9c674c68c0a1b475a284f9bd33ec5f7e6d52689",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "CayleyBacharach"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "record-compositions": {
+      "label": "record-compositions (AxiomMath/record-compositions; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/AxiomMath/record-compositions",
+      "commit": "b1067cc48c378499be944d693c1665e5e9abd18e",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "RecordCompositions"
+      ],
+      "licence": "MIT"
+    },
+    "negative-power-means": {
+      "label": "negative-power-means (marcotom/Negative-Power-Means; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/marcotom/Negative-Power-Means",
+      "commit": "8d9452844a62864ff6fc54ee6f11473fde6d98cd",
+      "toolchain": "leanprover/lean4:v4.32.2",
+      "roots": [
+        "BoundaryProofs",
+        "HiaiLimPowerMeans"
+      ],
+      "licence": "MIT"
+    },
+    "forcing": {
+      "label": "forcing (cameronfreer/forcing; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/cameronfreer/forcing",
+      "commit": "5d77761d21459022f052bb92e1ba3c92bbbe2342",
+      "toolchain": "leanprover/lean4:v4.32.2",
+      "roots": [
+        "Forcing"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "qharm": {
+      "label": "qharm (BrandonMYates/qharm; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/BrandonMYates/qharm",
+      "commit": "27f42bc146a647a47ce040e2d8be434d1faef856",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "QHarm"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "moran-lean": {
+      "label": "moran-lean (123yhxie-a11y/moran-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/123yhxie-a11y/moran-lean",
+      "commit": "666de78ca109bf9e5de6db41c17ccb9e93afb8fc",
+      "toolchain": "leanprover/lean4:v4.32.1",
+      "roots": [
+        "Moran"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "shearertrianglefreeind": {
+      "label": "shearertrianglefreeind (Pjotr5/ShearerTriangleFreeInd; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/Pjotr5/ShearerTriangleFreeInd",
+      "commit": "e23808a95cd600a39f252007b60582588317d65c",
+      "toolchain": "leanprover/lean4:v4.34.1",
+      "roots": [
+        "ShearerTriangleFreeInd"
+      ],
+      "licence": "Apache-2.0"
     }
   }
 }
