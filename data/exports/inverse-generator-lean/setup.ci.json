@@ -1,0 +1,44 @@
+{
+  "key": "inverse-generator-lean",
+  "repo": "https://github.com/zoowirt/inverse-generator-lean",
+  "commit": "f4e6d5a8b1bcfa15a8c357ca5a718a81a9e86492",
+  "toolchain": "leanprover/lean4:v4.33.0-rc1",
+  "roots": [
+    "InverseGenerator"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/inverse-generator-lean/repo",
+  "entries": 225,
+  "modules": 17,
+  "exported": 17,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 225,
+    "kept": 225,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 5,
+    "lineUnverified": 0,
+    "nameFixed": 225,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.0-rc1 (commit 62eed1db4d67327ec8120be05f1a1b0847d74561, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+62eed1d",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "af5aa64bb914 + batch patch 6b97bc97d34f",
+    "node": "v22.23.5",
+    "runnerImage": "ubuntu26/20261116.202.1"
+  },
+  "exportsBytes": 2371584,
+  "minutes": 4,
+  "finishedAt": "2026-11-20T16:56:14.832Z"
+}
