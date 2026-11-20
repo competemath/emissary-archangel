@@ -3483,6 +3483,126 @@
         "Erdos815"
       ],
       "licence": "Apache-2.0"
+    },
+    "s3xs3-li-einstein": {
+      "label": "s3xs3-li-einstein (wqirocks/S3xS3-LI-Einstein; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/wqirocks/S3xS3-LI-Einstein",
+      "commit": "6000022940f7e736a8fc84bfb287e36d1a0e335f",
+      "toolchain": "leanprover/lean4:v4.32.1",
+      "roots": [
+        "S3xS3"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "jsp-000290-lean": {
+      "label": "jsp-000290-lean (ljhfafa/jsp-000290-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/ljhfafa/jsp-000290-lean",
+      "commit": "a65923973350f2a1e5dbc4ec7f7c40432a37e0b6",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "Jsp290"
+      ],
+      "licence": "MIT"
+    },
+    "graph-container": {
+      "label": "graph-container (graph-container-team/graph-container; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/graph-container-team/graph-container",
+      "commit": "19eedbed4d6787e99667d72fd88473ebe306c156",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "GraphContainer"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "oeis-lean": {
+      "label": "oeis-lean (jewoo-suh/oeis-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/jewoo-suh/oeis-lean",
+      "commit": "1b2f715df2642944650976bdbfbf7a9adf76e290",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "OeisLean"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "veles": {
+      "label": "veles (ibrahimmian36/veles; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/ibrahimmian36/veles",
+      "commit": "e95e7b26033e8d834a664d90426430dba16c5253",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "Veles"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "scale-space-lean": {
+      "label": "scale-space-lean (danielfagerstrom/scale-space-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/danielfagerstrom/scale-space-lean",
+      "commit": "8ac4b5a8b4cca58278e58a988a603a3456c6d514",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "ScaleSpaceCore"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lagtwopositivity": {
+      "label": "lagtwopositivity (miosync-masa/LagTwoPositivity; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/miosync-masa/LagTwoPositivity",
+      "commit": "c5a3e3f951210e2e8738020ec60f69bb87191cbf",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "LagTwoPositivity"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "leancondensed": {
+      "label": "leancondensed (dagurtomas/LeanCondensed; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/dagurtomas/LeanCondensed",
+      "commit": "339ecc99fdc4bdb68ef248c16da0148dce61a639",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "LeanCondensed"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "q1-lean-verification": {
+      "label": "q1-lean-verification (barnettcaleb1/q1-lean-verification; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/barnettcaleb1/q1-lean-verification",
+      "commit": "0cdf41e1569d2839957158dfd73195a241fd8719",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "Q1"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "erdos-64": {
+      "label": "erdos-64 (derekszen/erdos-64; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/derekszen/erdos-64",
+      "commit": "cec563dd81a1c72563b47f01e3b460fa3d07da43",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "Erdos64"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "inverse-generator-lean": {
+      "label": "inverse-generator-lean (zoowirt/inverse-generator-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/zoowirt/inverse-generator-lean",
+      "commit": "f4e6d5a8b1bcfa15a8c357ca5a718a81a9e86492",
+      "toolchain": "leanprover/lean4:v4.33.0-rc1",
+      "roots": [
+        "InverseGenerator"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "squarefree-fuglede-lean": {
+      "label": "squarefree-fuglede-lean (LingYi-Liang/squarefree-fuglede-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/LingYi-Liang/squarefree-fuglede-lean",
+      "commit": "3c043465f7be7e2ab534cd5230852c18d06ab984",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "FugledeAudit"
+      ],
+      "licence": "MIT"
     }
   }
 }
