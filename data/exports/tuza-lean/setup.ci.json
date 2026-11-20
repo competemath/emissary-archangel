@@ -1,0 +1,44 @@
+{
+  "key": "tuza-lean",
+  "repo": "https://github.com/sichen-wang/tuza-lean",
+  "commit": "5cae999212a06418941fa9c909529a4ff38e1e5e",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "Tuza"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/tuza-lean/repo",
+  "entries": 344,
+  "modules": 22,
+  "exported": 22,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 344,
+    "kept": 344,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 1,
+    "lineUnverified": 0,
+    "nameFixed": 344,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.0 (commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+8c9756b",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "4e7915201d3f + batch patch 6b97bc97d34f",
+    "node": "v22.23.5",
+    "runnerImage": "ubuntu26/20261116.202.1"
+  },
+  "exportsBytes": 5754880,
+  "minutes": 2,
+  "finishedAt": "2026-11-20T02:54:49.529Z"
+}
