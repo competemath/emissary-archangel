@@ -3356,17 +3356,6 @@
       ],
       "licence": "Apache-2.0"
     },
-    "2dkakeyaconjecture": {
-      "label": "2dkakeyaconjecture (FrankieNC/2DKakeyaConjecture; registered from the tengoku-osint scan, FATE-X-relevant)",
-      "repo": "https://github.com/FrankieNC/2DKakeyaConjecture",
-      "commit": "e920f2cec812d474228b9930f1db116e6eafc896",
-      "toolchain": "leanprover/lean4:v4.33.0-rc2",
-      "roots": [
-        "BesicovitchSet",
-        "ForMathlib"
-      ],
-      "licence": "Apache-2.0"
-    },
     "jsp-000936-unit-circle-lean": {
       "label": "jsp-000936-unit-circle-lean (Wang060919/jsp-000936-unit-circle-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
       "repo": "https://github.com/Wang060919/jsp-000936-unit-circle-lean",
