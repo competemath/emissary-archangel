@@ -26,6 +26,7 @@
 //   --phase shard --shard i/N       --restore <build.tar.zst>, then build the rest of this shard's modules (a stable
 //                                   hash of the module name picks them) and run closures, notation expansion and
 //                                   exports for them; writes data/exports/<key>/.shards/<i>-of-<N>.json when done
+//   --phase smoke                   registration check: toolchain, clone, `lake env true`, Mathlib resolved; no records, no build (.github/workflows/registration-smoke.yml)
 //   --phase finish                  writes setup.json from the exports and the shard records, once every module
 //                                   is exported or recorded as failed by a shard that finished
 import { execFile, execFileSync, spawn } from "node:child_process"
@@ -108,7 +109,7 @@ if (!src) fail(`unknown source ${key} (sources.json)`)
 if (!src.repo || !src.commit || !src.toolchain || !src.roots?.length) fail(`${key}: sources.json entry needs repo, commit, toolchain, roots`)
 
 const PHASE = flag("phase", null)
-if (PHASE && !["build", "build-status", "shard", "finish"].includes(PHASE)) fail(`--phase is build, build-status, shard or finish, not ${PHASE}`)
+if (PHASE && !["build", "build-status", "shard", "finish", "smoke"].includes(PHASE)) fail(`--phase is build, build-status, shard, finish or smoke, not ${PHASE}`)
 const SHARD = (() => {
   const s = flag("shard", null)
   if (!s) return null
@@ -537,6 +538,21 @@ async function ensureClone() {
     if (r.code !== 0) fail(`link_srcdir: ${r.tail.slice(-500)}`)
   }
   log(`checkout ${REPO} @ ${src.commit.slice(0, 12)} (${src.toolchain})`)
+}
+
+// ---- registration smoke check ---------------------------------------------------
+// What the first minutes of a real setup need, and nothing of the records: the toolchain installs, the checkout resolves its dependencies (`lake env true`), and a library that
+// requires Mathlib has it in .lake/packages afterwards. A dependency from a folder outside the repository (lhymathlib `../mathlib4`), a manifest Lake cannot read
+// (lean-graph-proofs) and a Mathlib that was not materialised (lean-mathematical-commons) all stop here, before the registry PR merges and a setup run is spent on them.
+async function smoke() {
+  await ensureToolchain()
+  const r = await run("lake", ["env", "true"], { cwd: REPO, timeoutMs: 30 * 60 * 1000 })
+  if (r.code !== 0) fail(`smoke ${key}: lake env true exited ${r.code}: ${r.tail.slice(-600)}`)
+  const manifestPath = join(REPO, "lake-manifest.json")
+  const wantsMathlib = existsSync(manifestPath) && (JSON.parse(readFileSync(manifestPath, "utf8")).packages || []).some((p) => p.name === "mathlib")
+  const mathlib = join(REPO, ".lake", "packages", "mathlib")
+  if (wantsMathlib && !(existsSync(join(mathlib, "lakefile.toml")) || existsSync(join(mathlib, "lakefile.lean")))) fail(`smoke ${key}: the manifest requires mathlib but ${mathlib} has no lakefile after lake env true`)
+  log(`smoke ${key}: ok (${src.toolchain}${wantsMathlib ? ", mathlib resolved" : ""})`)
 }
 
 // ---- 3. seed the queue ----------------------------------------------------------
@@ -1649,6 +1665,7 @@ async function main() {
   removeLeftovers()
   log(`setup ${key}: ${src.repo} @ ${src.commit.slice(0, 12)} on ${src.toolchain}, roots ${src.roots.join(", ")}`)
   await ensureClone()
+  if (PHASE === "smoke") return smoke()
   const { entries, stats } = seedQueue()
   let modules = Array.from(new Set(entries.map((e) => moduleOfPath(e.sourcePath)))).sort()
   const only = PHASE === "build" || PHASE === "build-status" || PHASE === "shard" ? onlyModules() : null
