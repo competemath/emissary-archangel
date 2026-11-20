@@ -1,0 +1,44 @@
+{
+  "key": "ben-27-formalization",
+  "repo": "https://github.com/xinjiegit/ben_27_formalization",
+  "commit": "f70352964007662e97a810c880abbfea1e2ea262",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "NUSLean"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/ben-27-formalization/repo",
+  "entries": 291,
+  "modules": 9,
+  "exported": 9,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 291,
+    "kept": 291,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 291,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.0 (commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+8c9756b",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "4e7915201d3f + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 9674752,
+  "minutes": 9,
+  "finishedAt": "2026-11-20T03:19:48.549Z"
+}
