@@ -1,0 +1,44 @@
+{
+  "key": "formalizedsparse",
+  "repo": "https://github.com/YijunYuan/FormalizedSparse",
+  "commit": "be9fb43dded873bc7567b486e17e924823e10e41",
+  "toolchain": "leanprover/lean4:v4.31.0",
+  "roots": [
+    "FormalizedSparse"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/formalizedsparse/repo",
+  "entries": 417,
+  "modules": 10,
+  "exported": 10,
+  "failed": [],
+  "expansion": {
+    "expanded": 273,
+    "verbatim": 368,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 417,
+    "kept": 417,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 1,
+    "lineUnverified": 0,
+    "nameFixed": 415,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.31.0 (commit 68218e876d2a38b1985b8590fff244a83c321783, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+68218e8",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "8554815c2dc6 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.82.6"
+  },
+  "exportsBytes": 14442496,
+  "minutes": 9,
+  "finishedAt": "2026-11-20T05:31:18.430Z"
+}
