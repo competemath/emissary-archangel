@@ -1,0 +1,44 @@
+{
+  "key": "the-iwasawa-tower-law-for-ramanujan-s-third-order-mock-theta-function",
+  "repo": "https://github.com/Ghostintheshell-iuseArchbtw/The-Iwasawa-Tower-Law-for-Ramanujan-s-Third-Order-Mock-Theta-Function",
+  "commit": "a77289c0458dddb3307e0571e40c3059b2f66ed5",
+  "toolchain": "leanprover/lean4:v4.31.0",
+  "roots": [
+    "IwasawaTower"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/the-iwasawa-tower-law-for-ramanujan-s-third-order-mock-theta-function/repo",
+  "entries": 213,
+  "modules": 9,
+  "exported": 9,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 45,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 213,
+    "kept": 213,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 213,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.31.0 (commit 68218e876d2a38b1985b8590fff244a83c321783, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+68218e8",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "8554815c2dc6 + batch patch 6b97bc97d34f",
+    "node": "v22.23.5",
+    "runnerImage": "ubuntu26/20261116.202.1"
+  },
+  "exportsBytes": 2048000,
+  "minutes": 4,
+  "finishedAt": "2026-11-20T12:28:42.509Z"
+}
