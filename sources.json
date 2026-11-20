@@ -1995,21 +1995,6 @@
       ],
       "licence": "Apache-2.0"
     },
-    "thurston23": {
-      "label": "thurston23 (t4v1/thurston23; registered from the tengoku-osint scan, FATE-X-relevant)",
-      "repo": "https://github.com/t4v1/thurston23",
-      "commit": "3e118f265ef17eddb117513b9b401483fba13dc5",
-      "toolchain": "leanprover/lean4:v4.29.0-rc2",
-      "roots": [
-        "CatalanEisensteinRatio",
-        "CatalanLattice",
-        "CatalanLogSin",
-        "EisensteinLogSin",
-        "Thurston23",
-        "Thurston23Eisenstein"
-      ],
-      "licence": "Apache-2.0"
-    },
     "qpcf-lean": {
       "label": "qpcf-lean (DavidVFeldman/qpcf-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
       "repo": "https://github.com/DavidVFeldman/qpcf-lean",
@@ -3312,16 +3297,6 @@
       "toolchain": "leanprover/lean4:v4.31.0",
       "roots": [
         "FormalizedSparse"
-      ],
-      "licence": "Apache-2.0"
-    },
-    "lhymathlib": {
-      "label": "lhymathlib (luohaoyuan0420-w/lhyMathLib; registered from the tengoku-osint scan, FATE-X-relevant)",
-      "repo": "https://github.com/luohaoyuan0420-w/lhyMathLib",
-      "commit": "f69123de02bacebb912891735c17310ba57ac0b3",
-      "toolchain": "leanprover/lean4:v4.34.0",
-      "roots": [
-        "LhyMathLib"
       ],
       "licence": "Apache-2.0"
     },
