@@ -1,0 +1,44 @@
+{
+  "key": "rcsr-lean-proofs",
+  "repo": "https://github.com/SteveKotlarz/rcsr-lean-proofs",
+  "commit": "78b7d7f78fbfdd730cb703f2c49b372c6171f6db",
+  "toolchain": "leanprover/lean4:v4.31.0",
+  "roots": [
+    "RcsrProofs"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/rcsr-lean-proofs/repo",
+  "entries": 211,
+  "modules": 13,
+  "exported": 13,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 211,
+    "kept": 211,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 211,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.31.0 (commit 68218e876d2a38b1985b8590fff244a83c321783, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+68218e8",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "8554815c2dc6 + batch patch 6b97bc97d34f",
+    "node": "v22.23.5",
+    "runnerImage": "ubuntu26/20261116.202.1"
+  },
+  "exportsBytes": 4341760,
+  "minutes": 10,
+  "finishedAt": "2026-11-20T22:39:59.550Z"
+}
