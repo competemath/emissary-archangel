@@ -1,0 +1,44 @@
+{
+  "key": "cayley-bacharach",
+  "repo": "https://github.com/jpbald93/cayley-bacharach",
+  "commit": "d9c674c68c0a1b475a284f9bd33ec5f7e6d52689",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "CayleyBacharach"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/cayley-bacharach/repo",
+  "entries": 379,
+  "modules": 22,
+  "exported": 22,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 379,
+    "kept": 379,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 379,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.1 (commit 819816b2e0a3bf405af45ae5c7af2491d8f5bee6, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+819816b",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 14798848,
+  "minutes": 11,
+  "finishedAt": "2026-11-20T09:49:03.076Z"
+}
