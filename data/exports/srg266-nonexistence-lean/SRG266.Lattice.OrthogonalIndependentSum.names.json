@@ -1,0 +1,1 @@
+{"names":["SRG266.Lattice.linearIndependent_sum_of_orthogonal"],"modules":["SRG266.Lattice.OrthogonalIndependentSum"],"moduleOf":{"SRG266.Lattice.linearIndependent_sum_of_orthogonal":"SRG266.Lattice.OrthogonalIndependentSum"},"deps":{"SRG266.Lattice.linearIndependent_sum_of_orthogonal":[]}}

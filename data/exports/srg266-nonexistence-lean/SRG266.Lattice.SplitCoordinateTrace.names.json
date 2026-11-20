@@ -1,0 +1,1 @@
+{"names":["SRG266.Lattice.sum_coordinate_eigenvalues_of_split"],"modules":["SRG266.Lattice.SplitCoordinateTrace"],"moduleOf":{"SRG266.Lattice.sum_coordinate_eigenvalues_of_split":"SRG266.Lattice.SplitCoordinateTrace"},"deps":{"SRG266.Lattice.sum_coordinate_eigenvalues_of_split":[]}}
