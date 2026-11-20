@@ -52,13 +52,14 @@ def requires_of(lakefile):
 def _outside(path):
     """a path that leaves the repository (`../mathlib4`, `/home/x/mathlib4`): CI has only the one checkout, so nothing is there. A folder inside it (`third_party/optlib`, `./vendor/x`) is fine."""
     import posixpath
-    p = posixpath.normpath((path or "").strip())
+    if not isinstance(path, str) or not path.strip(): return True  # a path package with no folder named has nothing to build from (cubic on #225)
+    p = posixpath.normpath(path.strip())
     return p.startswith("/") or p == ".." or p.startswith("../")
 
 
 def path_dependencies(lakefile, manifest=None):
     """the names of the dependencies that are a folder OUTSIDE the repository (lhymathlib, batch 13: `require mathlib from "../mathlib4"`, `"type": "path", "dir": "../mathlib4"` in its manifest;
-    thurston23, batch 8: `../mathlib4-thurston`): setup cannot build such a library (`package directory not found`). A path inside the repository (causalean: `third_party/optlib`) builds and is allowed."""
+    thurston23, batch 8: `../mathlib4-thurston`): setup cannot build such a library (`package directory not found`). A path inside the repository (causalean: `third_party/optlib`) is not a path problem; the check of dependencies beyond Mathlib still decides it (cubic on #225: that check also refuses such a package, so a library like causalean is registered by hand, as it was)."""
     names = [m.group(1) for m in re.finditer(r'^\s*require\s+«?([\w.-]+)»?\s+from\s+"([^"]*)"', lakefile or "", re.M) if _outside(m.group(2))]  # `from "path"`; `from git "url"` has a word before the string
     for blk in re.split(r"\[\[require\]\]", lakefile or "")[1:]:
         blk = blk.split("\n[", 1)[0]
