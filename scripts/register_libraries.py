@@ -49,6 +49,25 @@ def requires_of(lakefile):
     return sorted(dict.fromkeys(names))
 
 
+def path_dependencies(lakefile, manifest=None):
+    """the names of the dependencies that are a folder on the author's machine and not a repository (lhymathlib, batch 13: `require mathlib from "../mathlib4"`, `"type": "path"` in its
+    manifest): setup cannot build such a library (`package directory not found: .../../mathlib4`), so it is refused at registration, not retried on every setup pickup."""
+    names = [m.group(1) for m in re.finditer(r'^\s*require\s+«?([\w.-]+)»?\s+from\s+"[^"]*"', lakefile or "", re.M)]  # `from "path"`; `from git "url"` has a word before the string
+    for blk in re.split(r"\[\[require\]\]", lakefile or "")[1:]:
+        blk = blk.split("\n[", 1)[0]
+        n = re.search(r'^\s*name\s*=\s*"([^"]+)"', blk, re.M)
+        if n and re.search(r'^\s*path\s*=\s*"', blk, re.M): names.append(n.group(1))
+    try: names += [p["name"].strip("«»") for p in json.loads(manifest or "{}").get("packages", []) if p.get("type") == "path"]
+    except Exception: pass
+    return sorted(dict.fromkeys(names))
+
+
+def key_problems(key):
+    """why this key cannot be a library: the generator writes it as a Lean namespace (`namespace Pascal(key)`, `import Tengoku.Pascal(key).…`) without guillemets, so it must start
+    with a letter (2dkakeyaconjecture, batch 14: `namespace 2dkakeyaconjecture` does not parse; Gitar on tengoku#973)"""
+    return [] if re.fullmatch(r"[a-z][a-z0-9-]*", key or "") else [f"key {key!r} is no Lean namespace (it must start with a letter and hold only a-z, 0-9 and -)"]
+
+
 def toolchain_in_range(tc):
     """tc: 'leanprover/lean4:v4.33.0', 'leanprover/lean4:v4.33.0-rc2' or 'v4.33.0'. True from v4.31.0 to v4.34.1; anything else is out: v4.36.0, a nightly,
     a spelling that merely contains a version, no version (cubic on #219: the whole string must be a release or release candidate)."""
@@ -102,7 +121,10 @@ def meta(repo):
         try: taken = registered_roots()
         except Exception as e: why.append(f"registry unreadable, roots not checked: {type(e).__name__}: {e}")
         else: why += root_problems(out["roots"], taken, out["key"])
+    why += key_problems(out["key"])
     mf = contents(repo, "lake-manifest.json", sha)
+    local = path_dependencies(lake, mf)
+    if local: why.append("local path dependency (a folder on the author's machine, setup cannot build it): " + ", ".join(local))
     deps = requires_of(lake)
     if mf:
         try: deps += [p["name"].strip("«»") for p in json.loads(mf)["packages"]]
@@ -129,7 +151,7 @@ def apply(argv):
     for m in M:
         if not toolchain_in_range(m.get("toolchain")):  # meta checks it too; stale or edited metadata that says ok must not get past here (cubic on #219)
             sys.exit(f"{m['key']} refused: toolchain {m.get('toolchain')} outside v4.31 to v4.34.1")
-        why = root_problems(m["roots"], taken, m["key"])
+        why = key_problems(m["key"]) + root_problems(m["roots"], taken, m["key"])
         if why: sys.exit(f"{m['key']} refused: " + "; ".join(why))
         for r in m["roots"]: taken.setdefault(r.lower(), []).append(m["key"])  # two libraries of one batch with one root are caught here too
     # tengoku: allowed + licences + corpora

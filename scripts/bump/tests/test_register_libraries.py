@@ -70,6 +70,57 @@ class Apply(unittest.TestCase):
             self._run(d, [m, {**m, "repo": "b/foo"}])
 
 
+LHY_LAKEFILE = 'import Lake\nopen Lake DSL\n\npackage lhyMathLib\n\nrequire mathlib from "../mathlib4"\n\n@[default_target]\nlean_lib LhyMathLib\n'
+LHY_MANIFEST = '{"version": "1.2.0",\n "packages":\n [{"type": "path",\n   "name": "mathlib",\n   "dir": "../mathlib4"},\n  {"url": "https://github.com/leanprover-community/plausible", "type": "git", "name": "plausible"}]}'
+
+
+class PathDependencies(unittest.TestCase):
+    """lhymathlib (batch 13) requires mathlib from `../mathlib4`: setup failed with `package directory not found` and every setup pickup retried it"""
+
+    def test_the_real_lhymathlib_lakefile_and_manifest(self):
+        self.assertEqual(rl.path_dependencies(LHY_LAKEFILE, None), ["mathlib"])
+        self.assertEqual(rl.path_dependencies("package x\n", LHY_MANIFEST), ["mathlib"])
+
+    def test_git_dependencies_are_not_path_dependencies(self):
+        self.assertEqual(rl.path_dependencies('require mathlib from git "https://github.com/leanprover-community/mathlib4" @ "v4.33.0"\n', '{"packages": [{"type": "git", "name": "mathlib"}]}'), [])
+        self.assertEqual(rl.path_dependencies('require mathlib from git\n  "https://github.com/leanprover-community/mathlib4"\n', None), [])
+
+    def test_toml_require_with_a_path(self):
+        self.assertEqual(rl.path_dependencies('[[require]]\nname = "mathlib"\npath = "../mathlib4"\n\n[[require]]\nname = "other"\ngit = "u"\n'), ["mathlib"])
+        self.assertEqual(rl.path_dependencies('[[require]]\nname = "mathlib"\ngit = "u"\nrev = "v4.33.0"\n'), [])
+
+    def test_meta_refuses_it(self):
+        def fake_gh(*a, raw=False):
+            p = a[0]
+            if p.endswith("/commits/main"): return json.dumps({"sha": "abc"})
+            if "/contents/" in p: return {"lean-toolchain": "leanprover/lean4:v4.34.0\n", "lakefile.lean": LHY_LAKEFILE, "lake-manifest.json": LHY_MANIFEST}.get(p.split("/contents/")[1].split("?")[0])
+            return json.dumps({"default_branch": "main", "archived": False, "fork": False, "license": {"spdx_id": "Apache-2.0"}})
+        with unittest.mock.patch.object(rl, "gh", fake_gh), unittest.mock.patch.object(rl, "registered_roots", return_value={}):
+            m = rl.meta("luohaoyuan0420-w/lhyMathLib")
+        self.assertIn("local path dependency", m["verdict"])
+        self.assertNotEqual(m["verdict"], "ok")
+
+
+class KeyProblems(unittest.TestCase):
+    def test_the_real_digit_first_key_is_refused_and_ordinary_keys_are_not(self):
+        self.assertTrue(rl.key_problems("2dkakeyaconjecture"))
+        self.assertTrue(rl.key_problems(""))
+        self.assertTrue(rl.key_problems("a.b"))
+        for k in ("kakeya-conjecture-2d", "erdos884", "jsp-000661-formalization", "lean-ratfunc-witt-local-global"): self.assertEqual(rl.key_problems(k), [], k)
+
+    def test_apply_refuses_a_digit_first_key(self):
+        with tempfile.TemporaryDirectory() as td:
+            T, E = Path(td) / "t", Path(td) / "e"
+            (T / "schemas").mkdir(parents=True); (E).mkdir()
+            (T / "schemas/sources.json").write_text(json.dumps({"allowed": [], "licences": {}, "corpora": {}}))
+            (E / "sources.json").write_text(json.dumps({"sources": {}}))
+            meta = Path(td) / "m.json"
+            meta.write_text(json.dumps([{"repo": "FrankieNC/2DKakeyaConjecture", "key": "2dkakeyaconjecture", "verdict": "ok", "roots": ["BesicovitchSet"], "toolchain": "leanprover/lean4:v4.32.0"}]))
+            with self.assertRaises(SystemExit) as c:
+                rl.apply(["apply", "--tengoku", str(T), "--emissary", str(E), "--meta", str(meta), "--records", td])
+            self.assertIn("no Lean namespace", str(c.exception))
+
+
 class Requires(unittest.TestCase):
     def test_lean_and_toml_spellings(self):
         self.assertEqual(rl.requires_of('require mathlib from git "u"\nrequire «foo-bar» from git "v"\n'), ["foo-bar", "mathlib"])
