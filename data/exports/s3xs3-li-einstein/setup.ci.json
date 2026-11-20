@@ -1,0 +1,44 @@
+{
+  "key": "s3xs3-li-einstein",
+  "repo": "https://github.com/wqirocks/S3xS3-LI-Einstein",
+  "commit": "6000022940f7e736a8fc84bfb287e36d1a0e335f",
+  "toolchain": "leanprover/lean4:v4.32.1",
+  "roots": [
+    "S3xS3"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/s3xs3-li-einstein/repo",
+  "entries": 872,
+  "modules": 28,
+  "exported": 28,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 872,
+    "kept": 872,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 17,
+    "lineUnverified": 1,
+    "nameFixed": 872,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.1 (commit f054605aea4b840552cca2e725580bffd1e1b704, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+f054605",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "86e4a3395074 + batch patch 6b97bc97d34f",
+    "node": "v22.23.5",
+    "runnerImage": "ubuntu26/20261116.88.1"
+  },
+  "exportsBytes": 10592256,
+  "minutes": 33,
+  "finishedAt": "2026-11-20T19:25:28.682Z"
+}
