@@ -85,6 +85,23 @@ class PathDependencies(unittest.TestCase):
         self.assertEqual(rl.path_dependencies('require mathlib from git "https://github.com/leanprover-community/mathlib4" @ "v4.33.0"\n', '{"packages": [{"type": "git", "name": "mathlib"}]}'), [])
         self.assertEqual(rl.path_dependencies('require mathlib from git\n  "https://github.com/leanprover-community/mathlib4"\n', None), [])
 
+    def test_thurston23_and_causalean_real_manifests(self):
+        thurston = '{"packages": [{"type": "path", "name": "mathlib", "dir": "../mathlib4-thurston"}]}'
+        causalean = '{"packages": [{"type": "path", "name": "optlib", "dir": "third_party/optlib"}, {"type": "path", "name": "FoML", "dir": "third_party/lean-rademacher"}]}'
+        self.assertEqual(rl.path_dependencies("package x\n", thurston), ["mathlib"])  # outside the repository: refused
+        self.assertEqual(rl.path_dependencies("package x\n", causalean), [])  # inside it: no path problem (the dependency check decides)
+
+    def test_inside_and_outside_spellings(self):
+        for inside in ("./vendor/x", "vendor/x", "a/../b", "third_party/optlib"): self.assertEqual(rl.path_dependencies(f'require x from "{inside}"\n'), [], inside)
+        for outside in ("../x", "..", "/abs/x", "a/../../x"): self.assertEqual(rl.path_dependencies(f'require x from "{outside}"\n'), ["x"], outside)
+        self.assertEqual(rl.path_dependencies('[[require]]\nname = "x"\npath = "vendor/x"\n'), [])
+        self.assertEqual(rl.path_dependencies('[[require]]\nname = "x"\npath = "../x"\n'), ["x"])
+
+    def test_a_path_package_without_a_folder_is_refused(self):
+        self.assertEqual(rl.path_dependencies("package x\n", '{"packages": [{"type": "path", "name": "x"}]}'), ["x"])
+        self.assertEqual(rl.path_dependencies("package x\n", '{"packages": [{"type": "path", "name": "x", "dir": 3}]}'), ["x"])
+        self.assertEqual(rl.path_dependencies("package x\n", '{"packages": [{"type": "path", "name": "x", "dir": ""}]}'), ["x"])
+
     def test_toml_require_with_a_path(self):
         self.assertEqual(rl.path_dependencies('[[require]]\nname = "mathlib"\npath = "../mathlib4"\n\n[[require]]\nname = "other"\ngit = "u"\n'), ["mathlib"])
         self.assertEqual(rl.path_dependencies('[[require]]\nname = "mathlib"\ngit = "u"\nrev = "v4.33.0"\n'), [])

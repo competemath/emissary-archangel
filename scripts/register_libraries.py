@@ -49,15 +49,24 @@ def requires_of(lakefile):
     return sorted(dict.fromkeys(names))
 
 
+def _outside(path):
+    """a path that leaves the repository (`../mathlib4`, `/home/x/mathlib4`): CI has only the one checkout, so nothing is there. A folder inside it (`third_party/optlib`, `./vendor/x`) is fine."""
+    import posixpath
+    if not isinstance(path, str) or not path.strip(): return True  # a path package with no folder named has nothing to build from (cubic on #225)
+    p = posixpath.normpath(path.strip())
+    return p.startswith("/") or p == ".." or p.startswith("../")
+
+
 def path_dependencies(lakefile, manifest=None):
-    """the names of the dependencies that are a folder on the author's machine and not a repository (lhymathlib, batch 13: `require mathlib from "../mathlib4"`, `"type": "path"` in its
-    manifest): setup cannot build such a library (`package directory not found: .../../mathlib4`), so it is refused at registration, not retried on every setup pickup."""
-    names = [m.group(1) for m in re.finditer(r'^\s*require\s+«?([\w.-]+)»?\s+from\s+"[^"]*"', lakefile or "", re.M)]  # `from "path"`; `from git "url"` has a word before the string
+    """the names of the dependencies that are a folder OUTSIDE the repository (lhymathlib, batch 13: `require mathlib from "../mathlib4"`, `"type": "path", "dir": "../mathlib4"` in its manifest;
+    thurston23, batch 8: `../mathlib4-thurston`): setup cannot build such a library (`package directory not found`). A path inside the repository (causalean: `third_party/optlib`) is not a path problem; the check of dependencies beyond Mathlib still decides it (cubic on #225: that check also refuses such a package, so a library like causalean is registered by hand, as it was)."""
+    names = [m.group(1) for m in re.finditer(r'^\s*require\s+«?([\w.-]+)»?\s+from\s+"([^"]*)"', lakefile or "", re.M) if _outside(m.group(2))]  # `from "path"`; `from git "url"` has a word before the string
     for blk in re.split(r"\[\[require\]\]", lakefile or "")[1:]:
         blk = blk.split("\n[", 1)[0]
         n = re.search(r'^\s*name\s*=\s*"([^"]+)"', blk, re.M)
-        if n and re.search(r'^\s*path\s*=\s*"', blk, re.M): names.append(n.group(1))
-    try: names += [p["name"].strip("«»") for p in json.loads(manifest or "{}").get("packages", []) if p.get("type") == "path"]
+        pth = re.search(r'^\s*path\s*=\s*"([^"]*)"', blk, re.M)
+        if n and pth and _outside(pth.group(1)): names.append(n.group(1))
+    try: names += [p["name"].strip("«»") for p in json.loads(manifest or "{}").get("packages", []) if p.get("type") == "path" and _outside(p.get("dir"))]
     except Exception: pass
     return sorted(dict.fromkeys(names))
 
