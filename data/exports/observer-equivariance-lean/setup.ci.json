@@ -1,0 +1,44 @@
+{
+  "key": "observer-equivariance-lean",
+  "repo": "https://github.com/gustafGitHub/observer-equivariance-lean",
+  "commit": "783cc19a12556f5be8f7579decd4f2e4a5fd4292",
+  "toolchain": "leanprover/lean4:v4.31.0-rc1",
+  "roots": [
+    "ObserverEquivariance"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/observer-equivariance-lean/repo",
+  "entries": 1020,
+  "modules": 24,
+  "exported": 24,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1020,
+    "kept": 1020,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 4,
+    "lineUnverified": 0,
+    "nameFixed": 427,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.31.0-rc1 (commit fd009949156901e6cf15b6d9bf1122294b8e697a, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+fd00994",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "cd502a76e055 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 27217920,
+  "minutes": 3,
+  "finishedAt": "2026-11-20T12:15:21.224Z"
+}
