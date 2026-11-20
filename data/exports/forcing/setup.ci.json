@@ -1,0 +1,44 @@
+{
+  "key": "forcing",
+  "repo": "https://github.com/cameronfreer/forcing",
+  "commit": "5d77761d21459022f052bb92e1ba3c92bbbe2342",
+  "toolchain": "leanprover/lean4:v4.32.2",
+  "roots": [
+    "Forcing"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/forcing/repo",
+  "entries": 772,
+  "modules": 89,
+  "exported": 89,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 237,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 772,
+    "kept": 772,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 772,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.2 (commit f3b06c705e6c85f5314019d5d3baab0fec5b580c, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+f3b06c7",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "86e4a3395074 + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.82.6"
+  },
+  "exportsBytes": 39419904,
+  "minutes": 3,
+  "finishedAt": "2026-11-20T09:41:14.984Z"
+}
