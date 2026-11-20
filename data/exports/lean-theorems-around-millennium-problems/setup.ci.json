@@ -1,0 +1,58 @@
+{
+  "key": "lean-theorems-around-millennium-problems",
+  "repo": "https://github.com/joelcanary/lean-theorems-around-millennium-problems",
+  "commit": "34bfd8551b59e05e781ee18f40ceb618aa48d9ce",
+  "toolchain": "leanprover/lean4:v4.32.0",
+  "roots": [
+    "BSDDeuring",
+    "BSDNotCongruentOne",
+    "BSDParidad",
+    "BSDTwist",
+    "HodgeMathlib",
+    "PanopticCandidato",
+    "PanopticDuplicados",
+    "PanopticFamilia",
+    "PanopticQuitar",
+    "PanopticTecho",
+    "PanopticUmbral",
+    "RiemannRedheffer",
+    "SmithDeterminant",
+    "SmithLCM",
+    "SmithLCMForma"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/lean-theorems-around-millennium-problems/repo",
+  "entries": 141,
+  "modules": 15,
+  "exported": 15,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 141,
+    "kept": 141,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 141,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.0 (commit 8c9756b28d64dab099da31a4c09229a9e6a2ef35, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+8c9756b",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "4e7915201d3f + batch patch 6b97bc97d34f",
+    "node": "v22.23.4",
+    "runnerImage": "ubuntu26/20261111.196.1"
+  },
+  "exportsBytes": 606208,
+  "minutes": 6,
+  "finishedAt": "2026-11-20T20:28:50.898Z"
+}

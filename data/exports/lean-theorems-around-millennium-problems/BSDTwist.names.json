@@ -1,0 +1,1 @@
+{"names":["BSDTwist.a_p","BSDTwist.a_p._proof_1","BSDTwist.a_p_twist"],"modules":["BSDTwist"],"moduleOf":{"BSDTwist.a_p":"BSDTwist","BSDTwist.a_p._proof_1":"BSDTwist","BSDTwist.a_p_twist":"BSDTwist"},"deps":{"BSDTwist.a_p":["BSDTwist.a_p._proof_1"],"BSDTwist.a_p._proof_1":[],"BSDTwist.a_p_twist":["BSDTwist.a_p","BSDTwist.a_p._proof_1"]}}
