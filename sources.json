@@ -3458,16 +3458,6 @@
       ],
       "licence": "Apache-2.0"
     },
-    "lean-graph-proofs": {
-      "label": "lean-graph-proofs (VictorLiwentao/lean-graph-proofs; registered from the tengoku-osint scan, FATE-X-relevant)",
-      "repo": "https://github.com/VictorLiwentao/lean-graph-proofs",
-      "commit": "979c01c2ad70ba67e1a2f50346322576ec04ad4a",
-      "toolchain": "leanprover/lean4:v4.34.0-rc2",
-      "roots": [
-        "LeanGraphProofs"
-      ],
-      "licence": "Apache-2.0"
-    },
     "jsp000958-lean": {
       "label": "jsp000958-lean (randyxian08/jsp000958-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
       "repo": "https://github.com/randyxian08/jsp000958-lean",
