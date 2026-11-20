@@ -3603,6 +3603,120 @@
         "FugledeAudit"
       ],
       "licence": "MIT"
+    },
+    "alpoge-lean": {
+      "label": "alpoge-lean (alerad/alpoge-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/alerad/alpoge-lean",
+      "commit": "b8eec94711a9b73151929b78cbd7cb999a008590",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "Alpoge"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "cliffordchain": {
+      "label": "cliffordchain (jpbald93/cliffordchain; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/jpbald93/cliffordchain",
+      "commit": "b6649f48bc4eaf192f729efd26a617fa2aeddfef",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "Clifford"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "quartet-distance-bandelt-dress": {
+      "label": "quartet-distance-bandelt-dress (rvazdev-ex/quartet_distance_bandelt_dress; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/rvazdev-ex/quartet_distance_bandelt_dress",
+      "commit": "e904dcf3ae1208ad70c8d0677d6f78e13d33986f",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "QuartetDistance"
+      ],
+      "licence": "MIT"
+    },
+    "rcsr-lean-proofs": {
+      "label": "rcsr-lean-proofs (SteveKotlarz/rcsr-lean-proofs; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/SteveKotlarz/rcsr-lean-proofs",
+      "commit": "78b7d7f78fbfdd730cb703f2c49b372c6171f6db",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "RcsrProofs"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "hall-ray": {
+      "label": "hall-ray (K-Yamada-2002/hall-ray; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/K-Yamada-2002/hall-ray",
+      "commit": "a584e5620124d23c709e3bbdc66db8b8b0586310",
+      "toolchain": "leanprover/lean4:v4.32.1",
+      "roots": [
+        "HallRay"
+      ],
+      "licence": "MIT"
+    },
+    "lean-theorems-around-millennium-problems": {
+      "label": "lean-theorems-around-millennium-problems (joelcanary/lean-theorems-around-millennium-problems; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/joelcanary/lean-theorems-around-millennium-problems",
+      "commit": "34bfd8551b59e05e781ee18f40ceb618aa48d9ce",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "BSDDeuring",
+        "BSDNotCongruentOne",
+        "BSDParidad",
+        "BSDTwist",
+        "HodgeMathlib",
+        "PanopticCandidato",
+        "PanopticDuplicados",
+        "PanopticFamilia",
+        "PanopticQuitar",
+        "PanopticTecho",
+        "PanopticUmbral",
+        "RiemannRedheffer",
+        "SmithDeterminant",
+        "SmithLCM",
+        "SmithLCMForma"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "pshd-lean": {
+      "label": "pshd-lean (MingchenXia/pshd-lean; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/MingchenXia/pshd-lean",
+      "commit": "0f659d78f788b34592f4df1d951174ecdc3d88e4",
+      "toolchain": "leanprover/lean4:v4.33.1",
+      "roots": [
+        "PshLines"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "partial-regularity": {
+      "label": "partial-regularity (AxiomMath/partial-regularity; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/AxiomMath/partial-regularity",
+      "commit": "90e9fef30ec4deaab84034917424b011f4341ec7",
+      "toolchain": "leanprover/lean4:v4.34.0-rc2",
+      "roots": [
+        "PartialRegularity"
+      ],
+      "licence": "MIT"
+    },
+    "lean-tnorms": {
+      "label": "lean-tnorms (NoahW314/Lean-Tnorms; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/NoahW314/Lean-Tnorms",
+      "commit": "b42b1ce5f839c5f863a4d51669f8694f71674987",
+      "toolchain": "leanprover/lean4:v4.32.0-rc1",
+      "roots": [
+        "Tnorms"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "one-edge-instability": {
+      "label": "one-edge-instability (ZeterMordio/one-edge-instability; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/ZeterMordio/one-edge-instability",
+      "commit": "ce2d519d1445159ce0f4aba7efd901429c6772ba",
+      "toolchain": "leanprover/lean4:v4.33.0-rc1",
+      "roots": [
+        "OneEdgeInstability"
+      ],
+      "licence": "Apache-2.0"
     }
   }
 }
