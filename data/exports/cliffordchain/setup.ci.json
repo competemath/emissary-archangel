@@ -1,0 +1,44 @@
+{
+  "key": "cliffordchain",
+  "repo": "https://github.com/jpbald93/cliffordchain",
+  "commit": "b6649f48bc4eaf192f729efd26a617fa2aeddfef",
+  "toolchain": "leanprover/lean4:v4.33.1",
+  "roots": [
+    "Clifford"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/cliffordchain/repo",
+  "entries": 192,
+  "modules": 8,
+  "exported": 8,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 192,
+    "kept": 192,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 192,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.33.1 (commit 819816b2e0a3bf405af45ae5c7af2491d8f5bee6, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+819816b",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "15f6055e299a + batch patch 6b97bc97d34f",
+    "node": "v22.23.5",
+    "runnerImage": "ubuntu26/20261116.202.1"
+  },
+  "exportsBytes": 2928640,
+  "minutes": 4,
+  "finishedAt": "2026-11-20T20:14:44.884Z"
+}
