@@ -3768,16 +3768,6 @@
       ],
       "licence": "Apache-2.0"
     },
-    "ordered-matrix-removal-4x4": {
-      "label": "ordered-matrix-removal-4x4 (erebos-labs/ordered-matrix-removal-4x4; registered from the tengoku-osint scan, FATE-X-relevant)",
-      "repo": "https://github.com/erebos-labs/ordered-matrix-removal-4x4",
-      "commit": "0d43f182f2ee12e27419ac4d5e32fd2d9b68ab43",
-      "toolchain": "leanprover/lean4:v4.34.1",
-      "roots": [
-        "OrderedMatrixRemoval4"
-      ],
-      "licence": "Apache-2.0"
-    },
     "randomsettheory": {
       "label": "randomsettheory (Riflonnade/RandomSetTheory; registered from the tengoku-osint scan, FATE-X-relevant)",
       "repo": "https://github.com/Riflonnade/RandomSetTheory",
