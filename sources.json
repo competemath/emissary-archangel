@@ -3798,6 +3798,38 @@
         "RainichKaluza"
       ],
       "licence": "MIT"
+    },
+    "goemans": {
+      "label": "goemans (TJC-LP/goemans; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/TJC-LP/goemans",
+      "commit": "45d8ef778c8c68a3f0bf54f2382c295bef407444",
+      "toolchain": "leanprover/lean4:v4.32.1",
+      "roots": [
+        "Goemans"
+      ],
+      "licence": "MIT"
+    },
+    "eoc-lean-verification": {
+      "label": "eoc-lean-verification (innerlightr-wq/eoc-lean-verification; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/innerlightr-wq/eoc-lean-verification",
+      "commit": "6057a0d519566a32fc4153a8920e93f18d70b064",
+      "toolchain": "leanprover/lean4:v4.34.0-rc1",
+      "roots": [
+        "EOC"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "lean-spectral-theory": {
+      "label": "lean-spectral-theory (savarin/lean-spectral-theory; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/savarin/lean-spectral-theory",
+      "commit": "d19e279f0ab244657f02ce678e8d67fa69e2f407",
+      "toolchain": "leanprover/lean4:v4.33.0",
+      "roots": [
+        "Spectral",
+        "SpectralStoneChallenge",
+        "SpectralStoneSolution"
+      ],
+      "licence": "Apache-2.0"
     }
   }
 }
