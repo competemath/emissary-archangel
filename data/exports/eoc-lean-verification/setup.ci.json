@@ -1,0 +1,44 @@
+{
+  "key": "eoc-lean-verification",
+  "repo": "https://github.com/innerlightr-wq/eoc-lean-verification",
+  "commit": "6057a0d519566a32fc4153a8920e93f18d70b064",
+  "toolchain": "leanprover/lean4:v4.34.0-rc1",
+  "roots": [
+    "EOC"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/eoc-lean-verification/repo",
+  "entries": 1413,
+  "modules": 97,
+  "exported": 97,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 1413,
+    "kept": 1413,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 0,
+    "lineUnverified": 0,
+    "nameFixed": 1413,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.34.0-rc1 (commit 3447a668783dbce1a8fdb97101dd067687b2b418, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+3447a66",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "b18d673bd29b + batch patch 6b97bc97d34f",
+    "node": "v22.23.5",
+    "runnerImage": "ubuntu26/20261116.202.1"
+  },
+  "exportsBytes": 26365952,
+  "minutes": 14,
+  "finishedAt": "2026-11-21T18:32:08.750Z"
+}
