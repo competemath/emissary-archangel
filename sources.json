@@ -3768,6 +3768,37 @@
       ],
       "licence": "Apache-2.0"
     },
+    "randomsettheory": {
+      "label": "randomsettheory (Riflonnade/RandomSetTheory; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/Riflonnade/RandomSetTheory",
+      "commit": "544f98470c3960a282d6f95c6e08c5487a195664",
+      "toolchain": "leanprover/lean4:v4.32.0",
+      "roots": [
+        "RandomSetTheory"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "superpermutations-hunter": {
+      "label": "superpermutations-hunter (urdvr/superpermutations-hunter; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/urdvr/superpermutations-hunter",
+      "commit": "d45222190031d162feb1f6f3cf5fe2d11fab726d",
+      "toolchain": "leanprover/lean4:v4.31.0",
+      "roots": [
+        "AxiomCheck",
+        "Hunter"
+      ],
+      "licence": "Apache-2.0"
+    },
+    "rainich-kaluza-reconstruction": {
+      "label": "rainich-kaluza-reconstruction (jimpeebles/rainich-kaluza-reconstruction; registered from the tengoku-osint scan, FATE-X-relevant)",
+      "repo": "https://github.com/jimpeebles/rainich-kaluza-reconstruction",
+      "commit": "33a5fc9ae279c1cc5b0dad9b6517d2d026c7cc54",
+      "toolchain": "leanprover/lean4:v4.32.1",
+      "roots": [
+        "RainichKaluza"
+      ],
+      "licence": "MIT"
+    },
     "goemans": {
       "label": "goemans (TJC-LP/goemans; registered from the tengoku-osint scan, FATE-X-relevant)",
       "repo": "https://github.com/TJC-LP/goemans",
