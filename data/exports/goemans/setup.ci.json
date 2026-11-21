@@ -1,0 +1,44 @@
+{
+  "key": "goemans",
+  "repo": "https://github.com/TJC-LP/goemans",
+  "commit": "45d8ef778c8c68a3f0bf54f2382c295bef407444",
+  "toolchain": "leanprover/lean4:v4.32.1",
+  "roots": [
+    "Goemans"
+  ],
+  "corpusRoot": "/home/runner/work/emissary-archangel/emissary-archangel/infra/goemans/repo",
+  "entries": 457,
+  "modules": 23,
+  "exported": 23,
+  "failed": [],
+  "expansion": {
+    "expanded": 0,
+    "verbatim": 0,
+    "unexpanded": 0,
+    "failed": []
+  },
+  "seed": {
+    "records": 457,
+    "kept": 457,
+    "skippedRoot": 0,
+    "skippedDup": 0,
+    "skippedNoFile": 0,
+    "skippedCommented": 0,
+    "lineFixed": 1,
+    "lineUnverified": 0,
+    "nameFixed": 457,
+    "sorryOriginals": 0,
+    "emptyProofs": 0
+  },
+  "tools": {
+    "lean": "4.32.1 (commit f054605aea4b840552cca2e725580bffd1e1b704, x86_64-unknown-linux-gnu)",
+    "lake": "5.0.0-src+f054605",
+    "elan": "4.4.0 (3cc76985a 2026-11-18)",
+    "lean4export": "86e4a3395074 + batch patch 6b97bc97d34f",
+    "node": "v22.23.5",
+    "runnerImage": "ubuntu26/20261116.202.1"
+  },
+  "exportsBytes": 8593408,
+  "minutes": 3,
+  "finishedAt": "2026-11-21T19:33:33.948Z"
+}
