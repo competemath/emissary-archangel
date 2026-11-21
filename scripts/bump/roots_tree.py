@@ -266,13 +266,16 @@ def qualify_explicit_roots(f: Lines, heads: set[str], ns: str) -> dict:
         return done
     for i, code in enumerate(f.code):
         decl = ROOT_DECL.match(code)
+        pair = ALIAS_PAIR.match(code)
+        # `alias ⟨_root_.r, _⟩`: ROOT_DECL's name starts at `⟨`, so the pair's own columns count as the declaration
+        pair_starts = {pair.start("a"), pair.start("b")} if pair else set()
         for t in reversed(list(ROOT_PREFIX.finditer(code))):
             head = head_of_token(code[t.end() :])
             if head not in heads:
                 continue
             f.insert(i, t.end(), ns + ".")
             done["heads"].add(head)
-            if decl and t.start() == decl.start("name"):
+            if (decl and t.start() == decl.start("name")) or t.start() in pair_starts:
                 if code[t.end() + len(head) : t.end() + len(head) + 1] == ".":
                     done["dotted"] += 1
                 else:
@@ -297,6 +300,12 @@ def qualify_roots_in_file(f: Lines, roots: set[str], ns: str, mark_open: bool = 
             done["heads"].add(
                 head_of_token(spelled.group("name")[len("_root_.") :])
             )  # declared from the root, wherever it stands: qualify_explicit_roots renames it
+        # `alias ⟨_root_.r, _⟩` is declared from the root wherever it stands (inside a namespace is where `_root_.` is normally written)
+        if pair := ALIAS_PAIR.match(code):
+            for g in ("a", "b"):
+                nm = pair.group(g)
+                if nm.startswith("_root_.") and head_of_token(nm[len("_root_.") :]) in roots:
+                    done["heads"].add(head_of_token(nm[len("_root_.") :]))
         if any(NAMESPACE.match(f.code[o]) for o in open_at[i]):
             continue  # inside a namespace a declaration is `N.x`, not a root; the block itself is handled at its own `namespace` line
         if m := NAMESPACE_NAME.match(code):
@@ -317,6 +326,8 @@ def qualify_roots_in_file(f: Lines, roots: set[str], ns: str, mark_open: bool = 
         if pair := ALIAS_PAIR.match(code):
             for g in ("b", "a"):  # right to left: an insertion shifts the columns after it
                 nm = pair.group(g)
+                if nm.startswith("_root_."):
+                    continue  # spelled from the root already: recorded above, and qualify_explicit_roots renames it
                 if nm != "_" and head_of(nm) in roots:
                     f.insert(i, pair.start(g), ns + ".")
                     done["heads"].add(head_of(nm))
