@@ -14,7 +14,7 @@ sys.path.insert(0, str(HERE.parent))
 import roots_tree  # noqa: E402
 import scope_rewrite as sr  # noqa: E402
 
-PIN = "d286e4525238d82263137d93fa5988bd9d3d5d976cdb1618fcc5d826c20caa48"  # sha256 of scripts/roots_tree.py in competemath/tengoku (main, 15 Nov 2026: through tengoku #835)
+PIN = "7bc469ebe963da986eb1ae8579bb809c1f45e3078b40d4b3154efd64eb031c45"  # sha256 of scripts/roots_tree.py in competemath/tengoku: main (15 Nov 2026, through #835) plus the alias ⟨a, b⟩ fix (tengoku fix/roots-tree-alias-pair; merge that first)
 STEP = "Make the registrations that leak into other libraries local (RECUT), and move the root declarations to Tengoku.<Library> (every cut)"
 
 
