@@ -193,9 +193,15 @@ def head_of(name: str) -> str:
 ROOT_DECL = re.compile(
     r"^(?P<pre>[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|public|noncomputable|nonrec|partial|unsafe)[ \t]+)*)"
     # `class abbrev X` and `class inductive X` declare X (as two words they read as a class named `abbrev`: merge of wave 4, Physlib/Units/Basic.lean:280, `class abbrev
-    # CarriesDimension` kept its root name); `alias x := y` declares x (same file, line 276, `alias dim := HasDim.d`). `alias ⟨a, b⟩ := h` names no root: what follows `alias` there is no root's name.
+    # CarriesDimension` kept its root name); `alias x := y` declares x (same file, line 276, `alias dim := HasDim.d`). `alias ⟨a, b⟩ := h` declares BOTH a and b: ALIAS_PAIR (below) qualifies them (lean-tnorms, 2026-11-21).
     r"(?:(?:local|scoped)[ \t]+)?(?P<kind>theorem|lemma|def|abbrev|structure|inductive|class[ \t]+abbrev|class[ \t]+inductive|class|opaque|axiom|instance|alias)\s+"
     rf"(?:\(priority\s*:=[^)]*\)\s*)?(?P<name>{NAME_TOKEN})"
+)
+# `alias ⟨a, b⟩ := h` (an iff): the two names it declares, `_` for the one it does not. ROOT_DECL reads that line as an `alias` named `⟨a,` (no root), so the two names stayed in the
+# root namespace: lean-tnorms `alias ⟨eq_one_of_one_le, _⟩ := le_one_iff_eq_one` and `alias ⟨_, lt_one_of_ne_one⟩ := lt_one_iff_ne_one` ejected #1012 from the merge queue (roots_gate).
+ALIAS_PAIR = re.compile(
+    r"^(?P<pre>[ \t]*(?:@\[[^\]]*\][ \t]*)*(?:(?:private|protected|public|noncomputable)[ \t]+)*)alias\s*⟨\s*"
+    rf"(?P<a>(?:{QUOTED}|[^\s,⟨⟩:({{\[⦃«»])+)\s*,\s*(?P<b>(?:{QUOTED}|[^\s,⟨⟩:({{\[⦃«»])+)\s*⟩"
 )
 NAMESPACE_NAME = re.compile(rf"^(?P<pre>\s*(?:(?:public|noncomputable)\s+)*namespace\s+)(?P<name>(?:{QUOTED}|[^\s«»])+)\s*$")
 END_NAME = re.compile(rf"^(?P<pre>\s*end\s+)(?P<name>(?:{QUOTED}|[^\s«»])+)\s*$")
@@ -307,6 +313,14 @@ def qualify_roots_in_file(f: Lines, roots: set[str], ns: str, mark_open: bool = 
                     parts = list(COMPONENT.finditer(e.group("name")))
                     if at[1] < len(parts) and parts[at[1]].group(0) == head:
                         f.insert(at[0], e.start("name") + parts[at[1]].start(), ns + ".")
+            continue
+        if pair := ALIAS_PAIR.match(code):
+            for g in ("b", "a"):  # right to left: an insertion shifts the columns after it
+                nm = pair.group(g)
+                if nm != "_" and head_of(nm) in roots:
+                    f.insert(i, pair.start(g), ns + ".")
+                    done["heads"].add(head_of(nm))
+                    done["declared"].append(nm)
             continue
         m = ROOT_DECL.match(code)
         if not m:
