@@ -14,7 +14,7 @@ sys.path.insert(0, str(HERE.parent))
 import roots_tree  # noqa: E402
 import scope_rewrite as sr  # noqa: E402
 
-PIN = "7bc469ebe963da986eb1ae8579bb809c1f45e3078b40d4b3154efd64eb031c45"  # sha256 of scripts/roots_tree.py in competemath/tengoku: main (15 Nov 2026, through #835) plus the alias ⟨a, b⟩ fix (tengoku fix/roots-tree-alias-pair; merge that first)
+PIN = "6d0d8fc45bc3d2fe2b9a567d5cc385a1e7e8dbb2521819f43da08394a2504f4d"  # sha256 of scripts/roots_tree.py in competemath/tengoku: main (21 Nov 2026, through #1026: an alias pair already spelled _root_.x is left to qualify_explicit_roots)
 STEP = "Make the registrations that leak into other libraries local (RECUT), and move the root declarations to Tengoku.<Library> (every cut)"
 
 
